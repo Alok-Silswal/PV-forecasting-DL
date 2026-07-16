@@ -27,6 +27,7 @@ from models.model_factory import get_model
 from training.loss import get_loss_function
 from training.trainer import Trainer
 from utils.logger import get_logger
+from experiments.baseline_experiment import run_baseline_analysis
 
 
 def _parse_args() -> argparse.Namespace:
@@ -341,6 +342,13 @@ def main() -> None:
     logger.info(
         "Training history saved to %s",
         config.HISTORY_FILE,
+    )
+
+    run_baseline_analysis()
+
+    logger.info(
+        "Baseline experiment analysis complete for %s.",
+        config.MODEL_EXPERIMENT_DIR,
     )
 
 
