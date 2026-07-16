@@ -25,6 +25,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from configs import config
+from hpo.finalize_hpo import finalize_hpo
 from hpo.hpo_runner import run_hpo
 from utils.logger import get_logger
 
@@ -51,9 +52,19 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--optimizer",
         type=str,
-        required=True,
+        default=None,
         choices=["random_search", "bayesian_optimization", "qs_bat", "qubo_sa"],
-        help="Name of the HPO optimizer to run.",
+        help="Name of the HPO optimizer to run. Required unless "
+        "--finalize is supplied.",
+    )
+    parser.add_argument(
+        "--finalize",
+        action="store_true",
+        help="Compare every already-produced HPO result "
+        "(results_<optimizer>.json) for the active model/horizon and "
+        "save the global winner as best_hpo.json. Mutually exclusive "
+        "with --optimizer; must be run only after all HPO techniques "
+        "of interest have already been executed.",
     )
     parser.add_argument(
         "--num-trials",
@@ -98,7 +109,16 @@ def _parse_args() -> argparse.Namespace:
             "config.ACTIVE_HORIZON for this run only)."
         ),
     )
-    return parser.parse_args()
+
+    args = parser.parse_args()
+
+    if args.finalize and args.optimizer is not None:
+        parser.error("--finalize cannot be combined with --optimizer.")
+
+    if not args.finalize and args.optimizer is None:
+        parser.error("--optimizer is required unless --finalize is given.")
+
+    return args
 
 def _apply_runtime_overrides(model_name: str, horizon: str) -> None:
     """
@@ -416,6 +436,28 @@ def _print_summary(optimizer_name: str, results: dict) -> None:
     for name, value in best_hyperparameters.items():
         print(f"{name:<20}  : {value}")
 
+def _print_finalize_summary(best_hpo: dict) -> None:
+    """
+    Print a concise finalization summary to the console.
+
+    Parameters
+    ----------
+    best_hpo : dict
+        Dictionary returned by ``hpo.finalize_hpo.finalize_hpo``.
+    """
+
+    print("=" * 40)
+    print("HPO Finalization Complete")
+    print("=" * 40)
+    print(f"Winning Optimizer    : {best_hpo['winning_optimizer']}")
+    print(f"Best Validation Loss : {best_hpo['objective']:.6f}")
+    print()
+    print("Best Hyperparameters")
+    print("-" * 40)
+
+    for name, value in best_hpo["best_hyperparameters"].items():
+        print(f"{name:<20}  : {value}")
+
 
 def main() -> None:
     """
@@ -434,6 +476,25 @@ def main() -> None:
         args.model if args.model is not None else config.MODEL_NAME,
         args.horizon if args.horizon is not None else config.ACTIVE_HORIZON,
     )
+
+    hpo_dir = config.MODEL_EXPERIMENT_DIR / "hpo"
+    hpo_dir.mkdir(parents=True, exist_ok=True)
+
+    logger = get_logger(hpo_dir, log_file="hpo.log")
+
+    if args.finalize:
+        logger.info("Starting HPO finalization for %s", hpo_dir)
+
+        best_hpo = finalize_hpo(hpo_dir)
+
+        logger.info(
+            "Saved best_hpo.json to %s (winning optimizer: %s)",
+            hpo_dir / "best_hpo.json",
+            best_hpo["winning_optimizer"],
+        )
+
+        _print_finalize_summary(best_hpo)
+        return
 
     _set_seed(config.RANDOM_SEED)
 
@@ -458,12 +519,7 @@ def main() -> None:
         num_workers=config.NUM_WORKERS,
     )
 
-    hpo_dir = config.MODEL_EXPERIMENT_DIR / "hpo"
-    hpo_dir.mkdir(parents=True, exist_ok=True)
-
     trainer_config = _build_trainer_config(hpo_dir / "checkpoints")
-
-    logger = get_logger(hpo_dir, log_file="hpo.log")
 
     optimizer_kwargs = _build_optimizer_kwargs(args)
 
