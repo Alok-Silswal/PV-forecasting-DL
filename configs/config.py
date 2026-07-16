@@ -45,8 +45,8 @@ MODEL_EVALUATION_DIR = EVALUATION_DIR / MODEL_NAME
 
 if IS_KAGGLE:
     RAW_DATA_FILE = Path(
-        "/kaggle/input/datasets/Combined_Output_All_Arrays.csv"
-    )
+    "/kaggle/input/datasets/aloksilswal/combined-output-all-arrays-csv/Combined_Output_All_Arrays.csv"
+)
 
     # Processed dataset generated inside the notebook
     PROCESSED_DATA_FILE = Path("/kaggle/working/Processed.csv")
