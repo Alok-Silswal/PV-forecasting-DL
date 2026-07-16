@@ -13,6 +13,7 @@ This script performs no inference, metric computation, or plotting of
 its own.
 """
 
+import argparse
 import csv
 import importlib
 import json
@@ -27,6 +28,63 @@ from configs import config
 from evaluation.evaluator import Evaluator
 from evaluation.plots import EvaluationPlotter
 from models.model_factory import get_model
+
+
+def _parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments. ``args.model`` is ``None`` when ``--model`` is
+        omitted, in which case ``config.MODEL_NAME`` is used unchanged.
+    """
+
+    parser = argparse.ArgumentParser(
+        description="Evaluate a PV power forecasting model."
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help=(
+            "Name of the model to evaluate (overrides config.MODEL_NAME "
+            "for this run only). Example: cnn, lstm, cnn_lstm, proposed, "
+            "proposed_no_fa, proposed_no_ta, proposed_no_fusion."
+        ),
+    )
+    return parser.parse_args()
+
+
+def _apply_model_override(model_name: str) -> None:
+    """
+    Override ``config.MODEL_NAME`` and every path derived from it for the
+    current execution only.
+
+    Parameters
+    ----------
+    model_name : str
+        Model name supplied via ``--model``.
+    """
+
+    config.MODEL_NAME = model_name
+
+    config.MODEL_EXPERIMENT_DIR = config.EXPERIMENTS_DIR / config.MODEL_NAME
+    config.MODEL_EVALUATION_DIR = config.EVALUATION_DIR / config.MODEL_NAME
+
+    config.CHECKPOINT_DIR = config.MODEL_EXPERIMENT_DIR / "checkpoints"
+    config.BEST_CHECKPOINT_PATH = config.CHECKPOINT_DIR / "best_checkpoint.pt"
+
+    config.HISTORY_FILE = config.MODEL_EXPERIMENT_DIR / "history.json"
+
+    config.EVALUATION_RESULTS_DIR = config.MODEL_EVALUATION_DIR / "results"
+    config.EVALUATION_PLOTS_DIR = config.MODEL_EVALUATION_DIR / "plots"
+
+    config.PREDICTIONS_FILE = config.EVALUATION_RESULTS_DIR / "predictions.csv"
+    config.EVALUATION_METRICS_FILE = (
+        config.EVALUATION_RESULTS_DIR / "evaluation_metrics.json"
+    )
 
 
 def _select_device() -> torch.device:
@@ -249,6 +307,11 @@ def _print_summary(
 
 def main() -> None:
     """Run the full evaluation pipeline end to end."""
+
+    args = _parse_args()
+
+    if args.model is not None:
+        _apply_model_override(args.model)
 
     device = _select_device()
 
