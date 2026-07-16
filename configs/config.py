@@ -124,7 +124,7 @@ LEARNING_RATE = 1e-3
 
 WEIGHT_DECAY = 1e-5
 
-EARLY_STOPPING_PATIENCE = 10
+EARLY_STOPPING_PATIENCE = 15
 
 # =============================================================================
 # Reproducibility
