@@ -242,13 +242,29 @@ def _print_summary(
     print(f"Metrics saved to {metrics_path}")
 
 
-def main() -> None:
+def run_baseline_analysis() -> Dict[str, float]:
     """
-    Run the baseline experiment analysis.
+    Run the baseline experiment analysis and return the final metrics.
 
-    Loads and validates ``experiments/history.json``, generates the
-    learning-curve figure, saves final-epoch baseline metrics, and prints
-    a concise summary.
+    Loads and validates ``config.HISTORY_FILE`` (as produced by
+    ``main.py`` via ``training.trainer.Trainer.train()``), generates the
+    learning-curve figure, and saves final-epoch baseline metrics.
+
+    This is the reusable entry point consumed both by this module's own
+    ``if __name__ == "__main__":`` block and by ``main.py``, which calls
+    it directly (not via subprocess) immediately after a successful
+    training run, so that ``loss_curve.png`` and ``baseline_metrics.json``
+    are produced automatically without a second command. All paths are
+    derived from the runtime configuration in ``configs.config`` at call
+    time, so results are written under the same
+    ``experiments/<model>/horizon_<horizon>/`` directory that training
+    just used.
+
+    Returns
+    -------
+    dict[str, float]
+        The extracted final-epoch metrics, as returned by
+        ``_save_baseline_metrics``.
     """
 
     history = _load_history(config.HISTORY_FILE)
@@ -263,6 +279,26 @@ def main() -> None:
     _plot_learning_curve(history, plot_path)
 
     final_metrics = _save_baseline_metrics(history, metrics_path)
+
+    return final_metrics
+
+
+def main() -> None:
+    """
+    Run the baseline experiment analysis as a standalone script.
+
+    Delegates all analysis work to ``run_baseline_analysis()`` and
+    prints a concise summary. Kept as the script's entry point so
+    ``python experiments/baseline_experiment.py`` continues to work
+    exactly as before.
+    """
+
+    final_metrics = run_baseline_analysis()
+
+    plot_path = config.HISTORY_FILE.parent / "plots" / "loss_curve.png"
+    metrics_path = (
+        config.HISTORY_FILE.parent / "results" / "baseline_metrics.json"
+    )
 
     _print_summary(final_metrics, plot_path, metrics_path)
 
