@@ -29,14 +29,35 @@ EVALUATION_DIR = PROJECT_ROOT / "evaluation"
 
 
 # =============================================================================
+# Active Forecast Horizon
+# =============================================================================
+# Selects which preprocessed artifact pair main.py loads: "15" or "60",
+# corresponding to TRAIN_15_FILE/VAL_15_FILE or TRAIN_60_FILE/VAL_60_FILE.
+#
+# This is also the single source of truth for the horizon segment used
+# in every experiment/evaluation directory below. IS_KAGGLE has no
+# bearing on this and must never be used to construct experiment paths;
+# IS_KAGGLE is reserved exclusively for dataset paths (see the Dataset
+# section further below).
+
+ACTIVE_HORIZON = "15"
+
+
+# =============================================================================
 # Model Configuration
 # =============================================================================
 
 MODEL_NAME = "proposed"
 
-MODEL_EXPERIMENT_DIR = EXPERIMENTS_DIR / MODEL_NAME
+# Directory hierarchy is Model -> Forecast Horizon -> Artifacts, so that
+# artifacts from different forecast horizons (e.g. 15-minute vs.
+# 60-minute training) never overwrite one another. The horizon segment
+# is derived exclusively from ACTIVE_HORIZON above.
+HORIZON_DIR_NAME = f"horizon_{ACTIVE_HORIZON}"
 
-MODEL_EVALUATION_DIR = EVALUATION_DIR / MODEL_NAME
+MODEL_EXPERIMENT_DIR = EXPERIMENTS_DIR / MODEL_NAME / HORIZON_DIR_NAME
+
+MODEL_EVALUATION_DIR = EVALUATION_DIR / MODEL_NAME / HORIZON_DIR_NAME
 
 
 # =============================================================================
@@ -177,14 +198,6 @@ FEATURE_ATTENTION_REDUCTION = 8
 MLP_HIDDEN_DIM = 64          # Default (HPO may change)
 MLP_DROPOUT_RATE = 0.20      # Default (HPO may change)
 
-
-# =============================================================================
-# Active Forecast Horizon
-# =============================================================================
-# Selects which preprocessed artifact pair main.py loads: "15" or "60",
-# corresponding to TRAIN_15_FILE/VAL_15_FILE or TRAIN_60_FILE/VAL_60_FILE.
-
-ACTIVE_HORIZON = "15"
 
 # =============================================================================
 # Forecast Output Dimension

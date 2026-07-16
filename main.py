@@ -53,24 +53,51 @@ def _parse_args() -> argparse.Namespace:
             "proposed_no_fa, proposed_no_ta, proposed_no_fusion."
         ),
     )
+    parser.add_argument(
+        "--horizon",
+        type=str,
+        default=None,
+        choices=config.HORIZON_TO_OUTPUT_DIM.keys(),
+        help=(
+            "Forecast horizon to train for (overrides "
+            "config.ACTIVE_HORIZON for this run only)."
+        ),
+    )
     return parser.parse_args()
 
 
-def _apply_model_override(model_name: str) -> None:
+def _apply_runtime_overrides(model_name: str, horizon: str) -> None:
     """
-    Override ``config.MODEL_NAME`` and every path derived from it for the
-    current execution only.
+    Rebuild ``config.MODEL_NAME``, ``config.ACTIVE_HORIZON``, and every
+    path derived from them for the current execution only.
+
+    Always re-derives the full Model -> Forecast Horizon -> Artifacts
+    hierarchy from ``config.MODEL_NAME`` and ``config.ACTIVE_HORIZON``,
+    so that artifacts for different forecast horizons never collide.
+    The horizon segment always comes from ``config.ACTIVE_HORIZON`` and
+    nowhere else (in particular, never from ``config.IS_KAGGLE``, which
+    is reserved exclusively for dataset paths).
 
     Parameters
     ----------
     model_name : str
         Model name supplied via ``--model``.
+
+    horizon : str
+        Forecast horizon supplied via ``--horizon``.
     """
 
     config.MODEL_NAME = model_name
+    config.ACTIVE_HORIZON = horizon
 
-    config.MODEL_EXPERIMENT_DIR = config.EXPERIMENTS_DIR / config.MODEL_NAME
-    config.MODEL_EVALUATION_DIR = config.EVALUATION_DIR / config.MODEL_NAME
+    config.HORIZON_DIR_NAME = f"horizon_{config.ACTIVE_HORIZON}"
+
+    config.MODEL_EXPERIMENT_DIR = (
+        config.EXPERIMENTS_DIR / config.MODEL_NAME / config.HORIZON_DIR_NAME
+    )
+    config.MODEL_EVALUATION_DIR = (
+        config.EVALUATION_DIR / config.MODEL_NAME / config.HORIZON_DIR_NAME
+    )
 
     config.CHECKPOINT_DIR = config.MODEL_EXPERIMENT_DIR / "checkpoints"
     config.BEST_CHECKPOINT_PATH = config.CHECKPOINT_DIR / "best_checkpoint.pt"
@@ -223,8 +250,14 @@ def main() -> None:
 
     args = _parse_args()
 
-    if args.model is not None:
-        _apply_model_override(args.model)
+    # Always rebuild horizon-aware paths, whether or not --model was
+    # supplied, so that config.MODEL_EXPERIMENT_DIR / MODEL_EVALUATION_DIR
+    # (and everything derived from them) reflect the active forecast
+    # horizon for this run.
+    _apply_runtime_overrides(
+        args.model if args.model is not None else config.MODEL_NAME,
+        args.horizon if args.horizon is not None else config.ACTIVE_HORIZON,
+    )
 
     _set_seed(config.RANDOM_SEED)
 

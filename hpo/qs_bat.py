@@ -510,7 +510,7 @@ def run_qs_bat(
             val_loader=val_loader,
             device=device,
             trainer_config=trainer_config,
-            logger=logger,
+            logger=resolved_logger,
         )
         trial_result = {"hyperparameters": hyperparameters, **result}
         trial_results.append(trial_result)
