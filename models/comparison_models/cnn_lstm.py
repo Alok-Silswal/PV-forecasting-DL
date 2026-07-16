@@ -268,10 +268,13 @@ class CNNLSTM(nn.Module):
         lstm_output, _ = self.lstm(x)
 
         # Last output timestep: (B, L, H) -> (B, H)
-        last_output = lstm_output[:, -1, :]
-
         last_output = self.lstm_dropout(last_output)
 
         prediction = self.mlp_head(last_output)
+
+        # (B, hidden_size) -> (B, 1, hidden_size): restores the
+        # singleton sequence dim MLPHead.forward() expects, so its
+        # mean(dim=1) pooling step is an identity operation.
+        prediction = self.mlp_head(last_output.unsqueeze(1))
 
         return prediction

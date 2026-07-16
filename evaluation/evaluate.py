@@ -173,9 +173,9 @@ def _load_test_dataset(test_dataset_path: Path) -> Dataset:
     Load the test dataset artifact from disk.
 
     Accepts a saved ``Dataset`` instance, a ``(inputs, targets)``
-    tuple/list of tensors, or a dictionary with ``"inputs"`` and
-    ``"targets"`` keys, and normalizes any of these to a
-    ``torch.utils.data.Dataset``.
+    tuple/list of tensors, or a dictionary with ``"X"``/``"y"`` keys
+    or ``"inputs"``/``"targets"`` keys, and normalizes any of these to
+    a ``torch.utils.data.Dataset``.
 
     Parameters
     ----------
@@ -209,13 +209,16 @@ def _load_test_dataset(test_dataset_path: Path) -> Dataset:
         inputs, targets = loaded
         return TensorDataset(inputs, targets)
 
+    if isinstance(loaded, dict) and "X" in loaded and "y" in loaded:
+        return TensorDataset(loaded["X"], loaded["y"])
+
     if isinstance(loaded, dict) and "inputs" in loaded and "targets" in loaded:
         return TensorDataset(loaded["inputs"], loaded["targets"])
 
     raise ValueError(
         f"Unrecognized test dataset format in {test_dataset_path}: "
         f"expected a Dataset, a (inputs, targets) tuple, or a dict with "
-        f"'inputs'/'targets' keys; got {type(loaded).__name__}."
+        f"'X'/'y' or 'inputs'/'targets' keys; got {type(loaded).__name__}."
     )
 
 

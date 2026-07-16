@@ -199,7 +199,7 @@ class CNN(nn.Module):
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)
-        x = self.dropout(x)
+        x = self.cnn_dropout(x)
 
         # ---------------- Global Average Pooling ----------------
         pooled = self.global_average_pool(x)

@@ -3,10 +3,17 @@ Shallow Multi-Layer Perceptron (MLP) prediction head for short-term photovoltaic
 
 This module receives the fused spatio-temporal representation, performs global average pooling over the temporal dimension, and predicts the future PV power output.
 
-Input Shape: (batch_size, sequence_length, embedding_dim)
+Accepts either a pooled feature tensor of shape
+    (batch_size, embedding_dim), or an unpooled sequence tensor of
+    shape (batch_size, sequence_length, embedding_dim), in which case
+    global average pooling over the sequence dimension is performed
+    internally before prediction.
 
-Output Shape: (batch_size, 1)
-"""
+    Input Shape: (batch_size, embedding_dim) or
+                 (batch_size, sequence_length, embedding_dim)
+
+    Output Shape: (batch_size, output_dim)
+    """
 
 import torch
 import torch.nn as nn
@@ -31,6 +38,7 @@ class MLPHead(nn.Module):
         input_dim: int,
         hidden_dim: int,
         dropout_rate: float,
+        output_dim: int = 1,
     ) -> None:
         super().__init__()
 
@@ -52,7 +60,7 @@ class MLPHead(nn.Module):
 
         self.output_layer = nn.Linear(
             in_features=hidden_dim,
-            out_features=1,
+            out_features=output_dim,
         )
 
         self._initialize_weights()
@@ -96,10 +104,9 @@ class MLPHead(nn.Module):
         Parameters
         ----------
         fused_features : Tensor
-            Fused spatio-temporal representation.
-
-            Shape:
-            (batch_size, sequence_length, input_dim)
+            Fused spatio-temporal representation, either already
+            pooled to (batch_size, input_dim) or unpooled with shape
+            (batch_size, sequence_length, input_dim).
 
         Returns
         -------
@@ -107,11 +114,23 @@ class MLPHead(nn.Module):
             Predicted PV power.
 
             Shape:
-            (batch_size, 1)
+            (batch_size, output_dim)
         """
 
-        # Global Average Pooling over the temporal dimension
-        pooled_features = fused_features.mean(dim=1)
+        if fused_features.dim() == 3:
+            # Global Average Pooling over the temporal dimension
+            pooled_features = fused_features.mean(dim=1)
+        elif fused_features.dim() == 2:
+            # Already pooled by the caller (e.g. CNN's global average
+            # pool, or the LSTM branches' last-timestep extraction)
+            pooled_features = fused_features
+        else:
+            raise ValueError(
+                f"MLPHead expects a 2D (batch_size, embedding_dim) or "
+                f"3D (batch_size, sequence_length, embedding_dim) "
+                f"tensor; got a {fused_features.dim()}D tensor of "
+                f"shape {tuple(fused_features.shape)}."
+            )
 
         hidden_features = self.hidden_layer(
             pooled_features
