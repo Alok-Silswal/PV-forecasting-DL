@@ -1,0 +1,81 @@
+## OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Editor and IDE state
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+## Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.ipynb_checkpoints/
+
+## Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+## Build and packaging outputs
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+## Logs and temporary files
+*.log
+!experiments/**/training.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+tmp/
+temp/
+
+## Common local environment files
+.env
+.env.*
+
+## Tool caches and local state
+.coverage
+.coverage.*
+htmlcov/
+
+## Jupyter and notebook runtime state
+.jupyter/
+
+# Raw and processed datasets
+data/raw/
+data/processed/
+
+# Generated preprocessing artifacts
+artifacts/train_15.pt
+artifacts/val_15.pt
+artifacts/test_15.pt
+
+artifacts/train_60.pt
+artifacts/val_60.pt
+artifacts/test_60.pt
+
+artifacts/feature_scaler.pkl
+artifacts/target_scaler.pkl
+artifacts/preprocessing_config.json
+
+# Model checkpoints
+experiments/*/checkpoints/
+
+## Keep project artifacts, checkpoints, and evaluation outputs tracked in Git.
+## Do not add ignore rules for history.json, training.log, *.pth, results, or processed datasets here.
