@@ -295,10 +295,6 @@ class Trainer:
             self.optimizer.zero_grad()
 
             predictions = self.model(inputs)
-
-            print("Prediction:", predictions.shape)
-            print("Target    :", targets.shape)
-
             loss = self.criterion(predictions, targets)
 
             loss.backward()
@@ -360,10 +356,6 @@ class Trainer:
                 targets = targets.to(self.device)
 
                 predictions = self.model(inputs)
-
-                print("Prediction:", predictions.shape)
-                print("Target    :", targets.shape)
-
                 loss = self.criterion(predictions, targets)
 
                 running_loss += loss.item() * inputs.size(0)
