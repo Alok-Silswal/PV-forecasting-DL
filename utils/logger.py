@@ -23,15 +23,29 @@ def get_logger(
         exist_ok=True,
     )
 
-    logger = logging.getLogger("PVForecasting")
+    # Derive a logger name from the experiment directory so that each
+    # experiment (e.g. proposed, cnn, lstm, cnn_lstm, proposed_no_fa,
+    # proposed_no_ta, proposed_no_fusion) gets its own independent,
+    # cached logger instead of all runs sharing a single global
+    # "PVForecasting" logger within the same Python kernel.
+    logger_name = f"PVForecasting.{log_directory.resolve()}"
 
-    # Prevent duplicate handlers
+    logger = logging.getLogger(logger_name)
+
+    # Prevent duplicate handlers for this specific experiment logger,
+    # while still allowing different experiments to have different
+    # loggers (and therefore different log files).
     if logger.handlers:
         return logger
 
     log_file_path = log_directory / log_file
 
     logger.setLevel(logging.INFO)
+
+    # Avoid propagating to the root logger, which would otherwise cause
+    # duplicate console output when multiple per-experiment loggers are
+    # created within the same process.
+    logger.propagate = False
 
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)s | %(message)s",
