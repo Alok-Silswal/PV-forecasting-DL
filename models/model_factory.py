@@ -18,6 +18,7 @@ from models.proposed_model import ProposedModel
 from models.comparison_models.cnn import CNN
 from models.comparison_models.lstm import LSTM
 from models.comparison_models.cnn_lstm import CNNLSTM
+from models.sequential_proposed_model import SequentialProposedModel
 
 def _load_proposed_hpo_kwargs() -> dict:
     """
@@ -132,6 +133,28 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
 
     if model_name == "cnn_lstm":
         return CNNLSTM(**kwargs)
+    
+    if model_name == "sequential_proposed":
+        return SequentialProposedModel(**kwargs)
+
+    if model_name == "sequential_no_fa":
+        return SequentialProposedModel(
+            use_feature_attention=False,
+            **kwargs,
+        )
+
+    if model_name == "sequential_no_ta":
+        return SequentialProposedModel(
+            use_temporal_attention=False,
+            **kwargs,
+        )
+
+    if model_name == "sequential_no_fa_no_ta":
+        return SequentialProposedModel(
+            use_feature_attention=False,
+            use_temporal_attention=False,
+            **kwargs,
+        )
 
     available_models = [
         "proposed",
@@ -143,6 +166,10 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "cnn",
         "lstm",
         "cnn_lstm",
+        "sequential_proposed",
+        "sequential_no_fa",
+        "sequential_no_ta",
+        "sequential_no_fa_no_ta",
     ]
 
     raise ValueError(
