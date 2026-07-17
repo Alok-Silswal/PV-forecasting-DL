@@ -360,8 +360,8 @@ def run_qs_bat(
     val_loader: DataLoader,
     device: torch.device,
     trainer_config: dict,
-    population_size: int = 20,
-    num_iterations: int = 30,
+    population_size: int = 4,
+    num_iterations: int = 3,
     elite_archive_size: int = 5,
     mutation_rate: float = 0.1,
     frequency_min: float = 0.0,
@@ -410,11 +410,14 @@ def run_qs_bat(
         ``evaluate_hyperparameters`` for every trial.
 
     population_size : int, optional
-        Number of bats in the population. Default is 20.
+        Number of bats in the population. Default is 4 (reduced HPO
+        budget, reflecting the smaller six-hyperparameter search
+        space).
 
     num_iterations : int, optional
         Number of iterations the swarm evolves for, after the initial
-        population evaluation. Default is 30.
+        population evaluation. Default is 3 (reduced HPO budget,
+        reflecting the smaller six-hyperparameter search space).
 
     elite_archive_size : int, optional
         Maximum number of configurations retained in the elite archive.

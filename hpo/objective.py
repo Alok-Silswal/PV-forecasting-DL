@@ -8,9 +8,20 @@ Given a candidate hyperparameter configuration, this module instantiates
 the model with those hyperparameters, trains it using the existing
 ``Trainer`` pipeline, and returns the best validation loss achieved
 during training together with the corresponding evaluation metrics. It
-contains no search-algorithm logic and is shared unchanged by Grid
-Search, Random Search, Bayesian Optimization, QS-BAT, and QUBO-inspired
-Simulated Annealing.
+contains no search-algorithm logic and is shared unchanged by Random
+Search, Bayesian Optimization, QS-BAT, and QUBO-inspired Simulated
+Annealing.
+
+Fixed (non-tuned) architecture hyperparameters
+------------------------------------------------
+``DCNN_KERNEL_SIZE``, ``DCNN_DILATION_RATE``, ``MLP_HIDDEN_DIM``, and
+``MLP_DROPOUT_RATE`` are intentionally excluded from
+``hpo.search_space`` (a research decision to shrink the search space
+and reduce runtime) and are therefore never present in ``hyperparameters``.
+``ProposedModel`` is instantiated using the project's existing default
+values for these four architecture settings, taken unchanged from
+``config.py``, while the remaining six hyperparameters come from the
+candidate configuration supplied by the optimizer.
 """
 
 import logging
@@ -20,19 +31,16 @@ import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
+from configs import config
 from models.proposed_model import ProposedModel
 from training.loss import get_loss_function
 from training.trainer import Trainer
 
 _REQUIRED_HYPERPARAMETER_KEYS = (
     "DCNN_FILTERS",
-    "DCNN_KERNEL_SIZE",
-    "DCNN_DILATION_RATE",
     "DCNN_DROPOUT_RATE",
     "BILSTM_HIDDEN_SIZE",
     "BILSTM_DROPOUT_RATE",
-    "MLP_HIDDEN_DIM",
-    "MLP_DROPOUT_RATE",
     "LEARNING_RATE",
     "WEIGHT_DECAY",
 )
@@ -137,15 +145,19 @@ def evaluate_hyperparameters(
     checkpoint saving disabled), and returns the best validation loss
     achieved during training together with its corresponding metrics.
 
+    ``DCNN_KERNEL_SIZE``, ``DCNN_DILATION_RATE``, ``MLP_HIDDEN_DIM``,
+    and ``MLP_DROPOUT_RATE`` are not part of the HPO search space and
+    are therefore not read from ``hyperparameters``; they are supplied
+    to ``ProposedModel`` using the project's fixed default values from
+    ``config.py``.
+
     Parameters
     ----------
     hyperparameters : dict
         Candidate hyperparameter configuration. Must contain the keys
-        ``"DCNN_FILTERS"``, ``"DCNN_KERNEL_SIZE"``, ``"DCNN_DILATION_RATE"``,
-        ``"DCNN_DROPOUT_RATE"``, ``"BILSTM_HIDDEN_SIZE"``,
-        ``"BILSTM_DROPOUT_RATE"``, ``"MLP_HIDDEN_DIM"``,
-        ``"MLP_DROPOUT_RATE"``, ``"LEARNING_RATE"``, and
-        ``"WEIGHT_DECAY"``.
+        ``"DCNN_FILTERS"``, ``"DCNN_DROPOUT_RATE"``,
+        ``"BILSTM_HIDDEN_SIZE"``, ``"BILSTM_DROPOUT_RATE"``,
+        ``"LEARNING_RATE"``, and ``"WEIGHT_DECAY"``.
 
     train_loader : DataLoader
         DataLoader yielding ``(inputs, targets)`` batches for training.
@@ -193,13 +205,13 @@ def evaluate_hyperparameters(
 
     model = ProposedModel(
         dcnn_filters=int(hyperparameters["DCNN_FILTERS"]),
-        dcnn_kernel_size=int(hyperparameters["DCNN_KERNEL_SIZE"]),
-        dcnn_dilation_rate=int(hyperparameters["DCNN_DILATION_RATE"]),
+        dcnn_kernel_size=int(config.DCNN_KERNEL_SIZE),
+        dcnn_dilation_rate=int(config.DCNN_DILATION_RATE),
         dcnn_dropout_rate=float(hyperparameters["DCNN_DROPOUT_RATE"]),
         bilstm_hidden_size=int(hyperparameters["BILSTM_HIDDEN_SIZE"]),
         bilstm_dropout_rate=float(hyperparameters["BILSTM_DROPOUT_RATE"]),
-        mlp_hidden_dim=int(hyperparameters["MLP_HIDDEN_DIM"]),
-        mlp_dropout_rate=float(hyperparameters["MLP_DROPOUT_RATE"]),
+        mlp_hidden_dim=int(config.MLP_HIDDEN_DIM),
+        mlp_dropout_rate=float(config.MLP_DROPOUT_RATE),
     ).to(device)
 
     criterion = get_loss_function()

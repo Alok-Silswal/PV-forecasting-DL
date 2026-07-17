@@ -9,8 +9,7 @@ configurations from ``hpo.search_space.SEARCH_SPACE`` using a dedicated,
 seeded random number generator, evaluates each via
 ``hpo.objective.evaluate_hyperparameters``, and returns the best
 configuration found. It contains no training or evaluation logic of its
-own and no other search-algorithm logic. Its return structure matches
-``hpo.grid_search.run_grid_search`` exactly.
+own and no other search-algorithm logic.
 """
 
 import logging
@@ -29,7 +28,7 @@ def run_random_search(
     val_loader: DataLoader,
     device: torch.device,
     trainer_config: dict,
-    num_trials: int = 30,
+    num_trials: int = 5,
     random_seed: int = 42,
     logger: logging.Logger | None = None,
 ) -> dict:
@@ -53,7 +52,8 @@ def run_random_search(
 
     num_trials : int, optional
         Number of independently sampled hyperparameter configurations to
-        evaluate. Default is 30.
+        evaluate. Default is 5 (reduced HPO budget, reflecting the
+        smaller six-hyperparameter search space).
 
     random_seed : int, optional
         Seed for the dedicated random number generator used for

@@ -236,7 +236,7 @@ def run_qubo_sa(
     val_loader: DataLoader,
     device: torch.device,
     trainer_config: dict,
-    num_iterations: int = 100,
+    num_iterations: int = 12,
     initial_temperature: float = 10.0,
     alpha: float = 0.95,
     perturbation_fraction: float = 0.1,
@@ -274,7 +274,8 @@ def run_qubo_sa(
 
     num_iterations : int, optional
         Number of annealing iterations performed after the initial
-        evaluation. Default is 100.
+        evaluation. Default is 12 (reduced HPO budget, reflecting the
+        smaller six-hyperparameter search space).
 
     initial_temperature : float, optional
         Starting temperature of the exponential cooling schedule. Must

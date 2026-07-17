@@ -7,9 +7,22 @@ photovoltaic (PV) power forecasting.
 This module contains no optimization logic. It is a single,
 optimizer-independent source of truth describing which
 hyperparameters may be tuned and their valid ranges/choices.
-It is shared unchanged by Grid Search, Random Search,
-Bayesian Optimization, QS-BAT, and QUBO-inspired
-Simulated Annealing.
+It is shared unchanged by Random Search, Bayesian Optimization,
+QS-BAT, and QUBO-inspired Simulated Annealing.
+
+Search space scope
+-------------------
+Only six hyperparameters are exposed for HPO: ``DCNN_FILTERS``,
+``DCNN_DROPOUT_RATE``, ``BILSTM_HIDDEN_SIZE``, ``BILSTM_DROPOUT_RATE``,
+``LEARNING_RATE``, and ``WEIGHT_DECAY``. ``DCNN_KERNEL_SIZE``,
+``DCNN_DILATION_RATE``, ``MLP_HIDDEN_DIM``, and ``MLP_DROPOUT_RATE``
+were intentionally removed from HPO (an explicit research decision to
+reduce runtime, since they contributed little practical improvement)
+and are fixed to their existing default architecture values in
+``config.py``. They remain part of the model architecture itself and
+are still accepted by ``ProposedModel``; they are simply no longer
+varied by any optimizer. ``hpo.objective.evaluate_hyperparameters``
+supplies them as fixed defaults.
 """
 
 from dataclasses import dataclass
@@ -58,22 +71,6 @@ SEARCH_SPACE: dict[str, Hyperparameter] = {
         choices=None,
         description="Number of convolutional filters in the DCNN branch.",
     ),
-    "DCNN_KERNEL_SIZE": Hyperparameter(
-        name="DCNN_KERNEL_SIZE",
-        param_type="categorical",
-        lower=None,
-        upper=None,
-        choices=[3, 5, 7],
-        description="Kernel size of the DCNN convolutional layers.",
-    ),
-    "DCNN_DILATION_RATE": Hyperparameter(
-        name="DCNN_DILATION_RATE",
-        param_type="categorical",
-        lower=None,
-        upper=None,
-        choices=[1, 2, 3, 4],
-        description="Dilation rate of the DCNN convolutional layers.",
-    ),
     "DCNN_DROPOUT_RATE": Hyperparameter(
         name="DCNN_DROPOUT_RATE",
         param_type="float",
@@ -97,22 +94,6 @@ SEARCH_SPACE: dict[str, Hyperparameter] = {
         upper=0.5,
         choices=None,
         description="Dropout rate applied within the Residual BiLSTM branch.",
-    ),
-    "MLP_HIDDEN_DIM": Hyperparameter(
-        name="MLP_HIDDEN_DIM",
-        param_type="integer",
-        lower=32,
-        upper=256,
-        choices=None,
-        description="Hidden dimension of the MLP prediction head.",
-    ),
-    "MLP_DROPOUT_RATE": Hyperparameter(
-        name="MLP_DROPOUT_RATE",
-        param_type="float",
-        lower=0.0,
-        upper=0.5,
-        choices=None,
-        description="Dropout rate applied within the MLP prediction head.",
     ),
     "LEARNING_RATE": Hyperparameter(
         name="LEARNING_RATE",
