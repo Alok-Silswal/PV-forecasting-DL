@@ -148,6 +148,19 @@ WEIGHT_DECAY = 1e-5
 EARLY_STOPPING_PATIENCE = 15
 
 # =============================================================================
+# HPO Training Parameters
+# =============================================================================
+# Dedicated, reduced training settings used only while evaluating
+# candidate configurations during hyperparameter optimization (see
+# hpo/objective.py). Kept separate from NUM_EPOCHS and
+# EARLY_STOPPING_PATIENCE above, which continue to govern final model
+# training and are unaffected by these settings.
+
+HPO_NUM_EPOCHS = 20
+
+HPO_EARLY_STOPPING_PATIENCE = 5
+
+# =============================================================================
 # Reproducibility
 # =============================================================================
 
@@ -160,8 +173,8 @@ RANDOM_SEED = 42
 DCNN_NUM_CONV_LAYERS = 2          # Fixed
 
 DCNN_FILTERS = 64                 # Default (HPO may change)
-DCNN_KERNEL_SIZE = 3              # Default (HPO may change)
-DCNN_DILATION_RATE = 2            # Default (HPO may change)
+DCNN_KERNEL_SIZE = 3      # Fixed architecture default (not tuned by HPO)
+DCNN_DILATION_RATE = 2     # Fixed architecture default (not tuned by HPO)
 DCNN_DROPOUT_RATE = 0.20          # Default (HPO may change)
 
 DCNN_STRIDE = 1                   # Fixed
@@ -195,8 +208,8 @@ FEATURE_ATTENTION_REDUCTION = 8
 # MLP Head
 # =============================================================================
 
-MLP_HIDDEN_DIM = 64          # Default (HPO may change)
-MLP_DROPOUT_RATE = 0.20      # Default (HPO may change)
+MLP_HIDDEN_DIM = 64        # Fixed architecture default (not tuned by HPO)
+MLP_DROPOUT_RATE = 0.20    # Fixed architecture default (not tuned by HPO)
 
 
 # =============================================================================

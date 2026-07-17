@@ -35,7 +35,7 @@ from hpo.objective import evaluate_hyperparameters
 from hpo.search_space import Hyperparameter, get_search_space
 from hpo.utils import sample_hyperparameters
 
-_CANDIDATE_POOL_SIZE = 2000
+_CANDIDATE_POOL_SIZE = 1000
 _GP_N_RESTARTS = 5
 
 
@@ -207,8 +207,8 @@ def run_bayesian_optimization(
     val_loader: DataLoader,
     device: torch.device,
     trainer_config: dict,
-    num_initial_points: int = 10,
-    num_iterations: int = 30,
+    num_initial_points: int = 3,
+    num_iterations: int = 5,
     random_seed: int = 42,
     logger: logging.Logger | None = None,
 ) -> dict:
@@ -240,11 +240,14 @@ def run_bayesian_optimization(
 
     num_initial_points : int, optional
         Number of randomly sampled configurations evaluated before
-        Bayesian Optimization begins. Default is 10.
+        Bayesian Optimization begins. Default is 3 (reduced HPO
+        budget, reflecting the smaller six-hyperparameter search
+        space).
 
     num_iterations : int, optional
         Number of surrogate-guided evaluations performed after the
-        initial design. Default is 30.
+        initial design. Default is 5 (reduced HPO budget, reflecting
+        the smaller six-hyperparameter search space).
 
     random_seed : int, optional
         Seed for the dedicated random number generator used for
