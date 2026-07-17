@@ -112,6 +112,13 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
     if model_name == "proposed_no_fusion":
         return ProposedModel(use_scalar_gated_fusion=False, **kwargs)
 
+    if model_name == "proposed_no_fa_no_fusion":
+        return ProposedModel(
+            use_feature_attention=False,
+            use_scalar_gated_fusion=False,
+            **kwargs,
+        )
+
     if model_name == "proposed_hpo":
         hpo_kwargs = _load_proposed_hpo_kwargs()
         hpo_kwargs.update(kwargs)
@@ -131,6 +138,7 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "proposed_no_fa",
         "proposed_no_ta",
         "proposed_no_fusion",
+        "proposed_no_fa_no_fusion",
         "proposed_hpo",
         "cnn",
         "lstm",
