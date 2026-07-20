@@ -76,3 +76,6 @@ artifacts/preprocessing_config.json
 
 ## Keep project artifacts, checkpoints, and evaluation outputs tracked in Git.
 ## Do not add ignore rules for history.json, training.log, *.pth, results, or processed datasets here.
+
+# Model checkpoints
+experiments/**/checkpoints/
