@@ -106,6 +106,11 @@ FEATURE_COLUMNS = [
     "Diffuse_Horizontal_Radiation",
     "Radiation_Global_Tilted",
     "Radiation_Diffuse_Tilted",
+    "Active_Power_IMF1",
+    "Active_Power_IMF2",
+    "Active_Power_IMF3",
+    "Active_Power_IMF4",
+    "Active_Power_IMF5",
 ]
 
 TARGET_COLUMN = "Active_Power"
