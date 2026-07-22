@@ -50,8 +50,8 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Name of the model to train (overrides config.MODEL_NAME for "
-            "this run only). Example: cnn, lstm, cnn_lstm, proposed, "
-            "proposed_no_fa, proposed_no_ta, proposed_no_fusion."
+            "this run only). Supported: cnn, lstm, cnn_lstm, "
+            "dcnn_rbilstm, proposed, proposed_no_ta."
         ),
     )
     parser.add_argument(
@@ -67,31 +67,36 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _apply_runtime_overrides(model_name: str, horizon: str) -> None:
+def _apply_runtime_overrides(model_name: str, horizon: str, run_number: int) -> None:
     """
-    Rebuild ``config.MODEL_NAME``, ``config.ACTIVE_HORIZON``, and every
-    path derived from them for the current execution only.
+    Rebuild config.MODEL_NAME, config.ACTIVE_HORIZON, config.RUN_NUMBER,
+    and every path derived from them for the current execution only.
 
-    Always re-derives the full Model -> Forecast Horizon -> Artifacts
-    hierarchy from ``config.MODEL_NAME`` and ``config.ACTIVE_HORIZON``,
-    so that artifacts for different forecast horizons never collide.
-    The horizon segment always comes from ``config.ACTIVE_HORIZON`` and
-    nowhere else (in particular, never from ``config.IS_KAGGLE``, which
-    is reserved exclusively for dataset paths).
+    Always re-derives the full
+    Model -> Forecast Horizon -> Run -> Artifacts
+    hierarchy from config.MODEL_NAME, config.ACTIVE_HORIZON, and
+    config.RUN_NUMBER, so that no stale path from a previous run or
+    horizon survives into the current one. The horizon segment always
+    comes from config.ACTIVE_HORIZON and nowhere else (in particular,
+    never from config.IS_KAGGLE, which is reserved exclusively for
+    dataset paths).
 
     Parameters
     ----------
     model_name : str
-        Model name supplied via ``--model``.
-
+        Model name supplied via --model.
     horizon : str
-        Forecast horizon supplied via ``--horizon``.
+        Forecast horizon supplied via --horizon.
+    run_number : int
+        Run index in [1, config.NUM_RUNS] to configure paths for.
     """
 
     config.MODEL_NAME = model_name
     config.ACTIVE_HORIZON = horizon
+    config.RUN_NUMBER = run_number
 
     config.HORIZON_DIR_NAME = f"horizon_{config.ACTIVE_HORIZON}"
+    config.RUN_NAME = f"run_{config.RUN_NUMBER}"
 
     config.MODEL_EXPERIMENT_DIR = (
         config.EXPERIMENTS_DIR / config.MODEL_NAME / config.HORIZON_DIR_NAME
@@ -100,13 +105,28 @@ def _apply_runtime_overrides(model_name: str, horizon: str) -> None:
         config.EVALUATION_DIR / config.MODEL_NAME / config.HORIZON_DIR_NAME
     )
 
-    config.CHECKPOINT_DIR = config.MODEL_EXPERIMENT_DIR / "checkpoints"
+    config.RUN_EXPERIMENT_DIR = config.MODEL_EXPERIMENT_DIR / config.RUN_NAME
+    config.RUN_EVALUATION_DIR = config.MODEL_EVALUATION_DIR / config.RUN_NAME
+
+    config.AVERAGE_EXPERIMENT_DIR = config.MODEL_EXPERIMENT_DIR / "average"
+    config.AVERAGE_EVALUATION_DIR = config.MODEL_EVALUATION_DIR / "average"
+
+    config.ALL_RUN_EXPERIMENT_DIRS = [
+        config.MODEL_EXPERIMENT_DIR / f"run_{i}"
+        for i in range(1, config.NUM_RUNS + 1)
+    ]
+    config.ALL_RUN_EVALUATION_DIRS = [
+        config.MODEL_EVALUATION_DIR / f"run_{i}"
+        for i in range(1, config.NUM_RUNS + 1)
+    ]
+
+    config.CHECKPOINT_DIR = config.RUN_EXPERIMENT_DIR / "checkpoints"
     config.BEST_CHECKPOINT_PATH = config.CHECKPOINT_DIR / "best_checkpoint.pt"
 
-    config.HISTORY_FILE = config.MODEL_EXPERIMENT_DIR / "history.json"
+    config.HISTORY_FILE = config.RUN_EXPERIMENT_DIR / "history.json"
 
-    config.EVALUATION_RESULTS_DIR = config.MODEL_EVALUATION_DIR / "results"
-    config.EVALUATION_PLOTS_DIR = config.MODEL_EVALUATION_DIR / "plots"
+    config.EVALUATION_RESULTS_DIR = config.RUN_EVALUATION_DIR / "results"
+    config.EVALUATION_PLOTS_DIR = config.RUN_EVALUATION_DIR / "plots"
 
     config.PREDICTIONS_FILE = config.EVALUATION_RESULTS_DIR / "predictions.csv"
     config.EVALUATION_METRICS_FILE = (
@@ -205,7 +225,6 @@ def _resolve_dataset_paths(horizon: str) -> Tuple[Path, Path]:
 
     return train_path, val_path
 
-
 def _load_tensor_dataset(path: Path) -> TensorDataset:
     """
     Load a preprocessed ``.pt`` artifact into a ``TensorDataset``.
@@ -238,29 +257,16 @@ def _load_tensor_dataset(path: Path) -> TensorDataset:
 
     return TensorDataset(inputs, targets)
 
-
-def main() -> None:
+def _train_single_run() -> None:
     """
-    Assemble the experiment and run training.
+    Train and save history for the currently configured run.
 
-    Loads configuration, sets the random seed, selects the device, builds
-    the DataLoaders, model, loss, optimizer, scheduler, and logger,
-    instantiates the trainer, runs training, and saves the resulting
-    history to disk.
+    Assumes config paths have already been set for this run via
+    _apply_runtime_overrides(). Resumes from config.CHECKPOINT_DIR /
+    'best_checkpoint.pt' only if that exact run's checkpoint exists;
+    never reuses another run's checkpoint, since CHECKPOINT_DIR is
+    unique per run.
     """
-
-    args = _parse_args()
-
-    # Always rebuild horizon-aware paths, whether or not --model was
-    # supplied, so that config.MODEL_EXPERIMENT_DIR / MODEL_EVALUATION_DIR
-    # (and everything derived from them) reflect the active forecast
-    # horizon for this run.
-    _apply_runtime_overrides(
-        args.model if args.model is not None else config.MODEL_NAME,
-        args.horizon if args.horizon is not None else config.ACTIVE_HORIZON,
-    )
-
-    _set_seed(config.RANDOM_SEED)
 
     device = _select_device()
 
@@ -301,7 +307,7 @@ def main() -> None:
         min_lr=config.SCHEDULER_MIN_LR,
     )
 
-    logger = get_logger(config.MODEL_EXPERIMENT_DIR)
+    logger = get_logger(config.RUN_EXPERIMENT_DIR)
 
     trainer = Trainer(
         model=model,
@@ -331,25 +337,133 @@ def main() -> None:
 
     history = trainer.train()
 
-    config.HISTORY_FILE.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    config.HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     with open(config.HISTORY_FILE, "w", encoding="utf-8") as history_file:
         json.dump(history, history_file, indent=2)
 
-    logger.info(
-        "Training history saved to %s",
-        config.HISTORY_FILE,
-    )
+    logger.info("Training history saved to %s", config.HISTORY_FILE)
 
     run_baseline_analysis()
 
     logger.info(
         "Baseline experiment analysis complete for %s.",
-        config.MODEL_EXPERIMENT_DIR,
+        config.RUN_EXPERIMENT_DIR,
     )
+
+def _is_run_complete() -> bool:
+    """
+    Check whether the currently configured run has already finished
+    both training and evaluation.
+
+    A run is considered complete only if config.HISTORY_FILE,
+    config.BEST_CHECKPOINT_PATH, and config.EVALUATION_METRICS_FILE
+    all already exist. Must be called only after
+    _apply_runtime_overrides() has configured paths for the run being
+    checked.
+
+    Returns
+    -------
+    bool
+        True if the run's history.json, best_checkpoint.pt, and
+        evaluation_metrics.json all exist on disk.
+    """
+
+    return (
+        config.HISTORY_FILE.exists()
+        and config.BEST_CHECKPOINT_PATH.exists()
+        and config.EVALUATION_METRICS_FILE.exists()
+    )
+
+def _create_run_folders() -> None:
+    """
+    Ensure all directories for the currently configured run exist.
+
+    Must be called after _apply_runtime_overrides() has set
+    config.RUN_EXPERIMENT_DIR / config.RUN_EVALUATION_DIR (and
+    everything derived from them) for the run being prepared.
+    """
+
+    config.RUN_EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
+    config.RUN_EVALUATION_DIR.mkdir(parents=True, exist_ok=True)
+
+    config.CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    config.EVALUATION_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    config.EVALUATION_PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _compute_average_metrics() -> None:
+    """
+    Aggregate evaluation_metrics.json across all completed runs and
+    write the averaged result to config.AVERAGE_EVALUATION_DIR.
+
+    Reads config.ALL_RUN_EVALUATION_DIRS (already rebuilt for the
+    current model/horizon by the final _apply_runtime_overrides()
+    call), collects each run's 'evaluation_metrics.json', averages
+    matching numeric keys, and writes 'average_metrics.json' to
+    config.AVERAGE_EVALUATION_DIR.
+    """
+
+    metrics_list = []
+
+    for run_eval_dir in config.ALL_RUN_EVALUATION_DIRS:
+        metrics_path = run_eval_dir / "results" / "evaluation_metrics.json"
+        if not metrics_path.exists():
+            continue
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            metrics_list.append(json.load(f))
+
+    if not metrics_list:
+        return
+
+    keys = metrics_list[0].keys()
+    averaged = {
+        key: float(np.mean([m[key] for m in metrics_list if key in m]))
+        for key in keys
+    }
+
+    config.AVERAGE_EVALUATION_DIR.mkdir(parents=True, exist_ok=True)
+    average_path = config.AVERAGE_EVALUATION_DIR / "average_metrics.json"
+
+    with open(average_path, "w", encoding="utf-8") as f:
+        json.dump(averaged, f, indent=2)
+
+def main() -> None:
+    """
+    Assemble the experiment and run training/evaluation across all
+    configured runs, then compute averaged metrics.
+
+    For each run in [1, config.NUM_RUNS]: rebuilds all run-scoped
+    config paths, creates required folders, and trains + evaluates
+    unless that run has already completed (history.json and
+    evaluation_metrics.json both already exist). After all runs,
+    aggregates metrics into config.AVERAGE_EVALUATION_DIR.
+    """
+
+    args = _parse_args()
+
+    model_name = args.model if args.model is not None else config.MODEL_NAME
+    horizon = args.horizon if args.horizon is not None else config.ACTIVE_HORIZON
+
+    for run_number in range(1, config.NUM_RUNS + 1):
+        _apply_runtime_overrides(model_name, horizon, run_number)
+
+        if _is_run_complete():
+            print(
+                f"[SKIP] {config.MODEL_NAME}/{config.HORIZON_DIR_NAME}/"
+                f"{config.RUN_NAME} already complete "
+                f"(history, checkpoint, and metrics all found). Skipping."
+            )
+            continue
+
+        _set_seed(config.RANDOM_SEED)
+        _create_run_folders()
+        _train_single_run()
+
+    # Rebuild paths once more (run_number irrelevant here) so that
+    # config.ALL_RUN_EVALUATION_DIRS / config.AVERAGE_EVALUATION_DIR
+    # reflect the final model/horizon, not a stale value from the loop.
+    _apply_runtime_overrides(model_name, horizon, config.NUM_RUNS)
+    _compute_average_metrics()
 
 
 if __name__ == "__main__":
