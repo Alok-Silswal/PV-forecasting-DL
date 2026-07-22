@@ -67,7 +67,7 @@ class DCNNResidualBiLSTM(nn.Module):
         self.use_temporal_attention = use_temporal_attention
 
         # Any parameter left as None falls back to config.py, preserving
-        # SequentialProposedModel() as fully equivalent to the default
+        # DCNNResidualBiLSTM() as fully equivalent to the default
         # configured behavior.
         dcnn_filters = dcnn_filters if dcnn_filters is not None else config.DCNN_FILTERS
         dcnn_kernel_size = dcnn_kernel_size if dcnn_kernel_size is not None else config.DCNN_KERNEL_SIZE

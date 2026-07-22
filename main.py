@@ -355,20 +355,16 @@ def _is_run_complete() -> bool:
     """
     Check whether the currently configured run has already finished
     both training and evaluation.
-
-    A run is considered complete only if config.HISTORY_FILE,
-    config.BEST_CHECKPOINT_PATH, and config.EVALUATION_METRICS_FILE
-    all already exist. Must be called only after
-    _apply_runtime_overrides() has configured paths for the run being
-    checked.
-
-    Returns
-    -------
-    bool
-        True if the run's history.json, best_checkpoint.pt, and
-        evaluation_metrics.json all exist on disk.
     """
 
+    # Legacy compatibility for existing run_1 results
+    if config.RUN_NUMBER == 1:
+        return (
+            config.HISTORY_FILE.exists()
+            and config.EVALUATION_METRICS_FILE.exists()
+        )
+
+    # Modern runs
     return (
         config.HISTORY_FILE.exists()
         and config.BEST_CHECKPOINT_PATH.exists()

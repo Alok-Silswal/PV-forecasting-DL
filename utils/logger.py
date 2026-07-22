@@ -24,8 +24,7 @@ def get_logger(
     )
 
     # Derive a logger name from the experiment directory so that each
-    # experiment (e.g. proposed, cnn, lstm, cnn_lstm, proposed_no_fa,
-    # proposed_no_ta, proposed_no_fusion) gets its own independent,
+    # experiment gets its own independent,
     # cached logger instead of all runs sharing a single global
     # "PVForecasting" logger within the same Python kernel.
     logger_name = f"PVForecasting.{log_directory.resolve()}"
