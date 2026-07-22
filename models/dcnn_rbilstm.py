@@ -42,7 +42,7 @@ from models.mlp_head import MLPHead
 from torch import Tensor
 
 
-class SequentialProposedModel(nn.Module):
+class DCNNResidualBiLSTM(nn.Module):
     """
     Complete sequential PV forecasting model.
     """
