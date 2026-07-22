@@ -64,35 +64,51 @@ def _parse_args() -> argparse.Namespace:
             "config.ACTIVE_HORIZON for this run only)."
         ),
     )
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help=(
+            "Run number to evaluate, in [1, config.NUM_RUNS]. "
+            "If omitted, config.RUN_NUMBER is used."
+        ),
+    )
     return parser.parse_args()
 
 
-def _apply_runtime_overrides(model_name: str, horizon: str) -> None:
+def _apply_runtime_overrides(model_name: str, horizon: str, run_number: int) -> None:
     """
-    Rebuild ``config.MODEL_NAME``, ``config.ACTIVE_HORIZON``, and every
-    path derived from them for the current execution only.
+    Rebuild config.MODEL_NAME, config.ACTIVE_HORIZON, config.RUN_NUMBER,
+    and every path derived from them for the current execution only.
 
-    Always re-derives the full Model -> Forecast Horizon -> Artifacts
-    hierarchy from ``config.MODEL_NAME`` and ``config.ACTIVE_HORIZON``,
-    so that evaluation artifacts for different forecast horizons never
-    collide. The horizon segment always comes from
-    ``config.ACTIVE_HORIZON`` and nowhere else (in particular, never
-    from ``config.IS_KAGGLE``, which is reserved exclusively for
-    dataset paths).
+    Mirrors main.py's _apply_runtime_overrides so evaluate.py always
+    targets the same run/horizon hierarchy that training used. The
+    horizon segment always comes from config.ACTIVE_HORIZON and nowhere
+    else (in particular, never from config.IS_KAGGLE, which is reserved
+    exclusively for dataset paths).
 
     Parameters
     ----------
     model_name : str
-        Model name supplied via ``--model``.
-
+        Model name supplied via --model.
     horizon : str
-        Forecast horizon supplied via ``--horizon``.
+        Forecast horizon supplied via --horizon.
+    run_number : int
+        Run index in [1, config.NUM_RUNS] to evaluate.
     """
 
     config.MODEL_NAME = model_name
     config.ACTIVE_HORIZON = horizon
 
+    if not (1 <= run_number <= config.NUM_RUNS):
+        raise ValueError(
+            f"run_number must be between 1 and {config.NUM_RUNS}."
+        )
+
+    config.RUN_NUMBER = run_number
+
     config.HORIZON_DIR_NAME = f"horizon_{config.ACTIVE_HORIZON}"
+    config.RUN_NAME = f"run_{config.RUN_NUMBER}"
 
     config.MODEL_EXPERIMENT_DIR = (
         config.EXPERIMENTS_DIR / config.MODEL_NAME / config.HORIZON_DIR_NAME
@@ -101,13 +117,28 @@ def _apply_runtime_overrides(model_name: str, horizon: str) -> None:
         config.EVALUATION_DIR / config.MODEL_NAME / config.HORIZON_DIR_NAME
     )
 
-    config.CHECKPOINT_DIR = config.MODEL_EXPERIMENT_DIR / "checkpoints"
+    config.RUN_EXPERIMENT_DIR = config.MODEL_EXPERIMENT_DIR / config.RUN_NAME
+    config.RUN_EVALUATION_DIR = config.MODEL_EVALUATION_DIR / config.RUN_NAME
+
+    config.AVERAGE_EXPERIMENT_DIR = config.MODEL_EXPERIMENT_DIR / "average"
+    config.AVERAGE_EVALUATION_DIR = config.MODEL_EVALUATION_DIR / "average"
+
+    config.ALL_RUN_EXPERIMENT_DIRS = [
+        config.MODEL_EXPERIMENT_DIR / f"run_{i}"
+        for i in range(1, config.NUM_RUNS + 1)
+    ]
+    config.ALL_RUN_EVALUATION_DIRS = [
+        config.MODEL_EVALUATION_DIR / f"run_{i}"
+        for i in range(1, config.NUM_RUNS + 1)
+    ]
+
+    config.CHECKPOINT_DIR = config.RUN_EXPERIMENT_DIR / "checkpoints"
     config.BEST_CHECKPOINT_PATH = config.CHECKPOINT_DIR / "best_checkpoint.pt"
 
-    config.HISTORY_FILE = config.MODEL_EXPERIMENT_DIR / "history.json"
+    config.HISTORY_FILE = config.RUN_EXPERIMENT_DIR / "history.json"
 
-    config.EVALUATION_RESULTS_DIR = config.MODEL_EVALUATION_DIR / "results"
-    config.EVALUATION_PLOTS_DIR = config.MODEL_EVALUATION_DIR / "plots"
+    config.EVALUATION_RESULTS_DIR = config.RUN_EVALUATION_DIR / "results"
+    config.EVALUATION_PLOTS_DIR = config.RUN_EVALUATION_DIR / "plots"
 
     config.PREDICTIONS_FILE = config.EVALUATION_RESULTS_DIR / "predictions.csv"
     config.EVALUATION_METRICS_FILE = (
@@ -348,6 +379,7 @@ def main() -> None:
     _apply_runtime_overrides(
         args.model if args.model is not None else config.MODEL_NAME,
         args.horizon if args.horizon is not None else config.ACTIVE_HORIZON,
+        args.run if args.run is not None else config.RUN_NUMBER,
     )
 
     device = _select_device()
@@ -363,12 +395,12 @@ def main() -> None:
     )
 
     target_scaler_path = Path(config.TARGET_SCALER_FILE)
-    target_scaler = _load_target_scaler(target_scaler_path)
+    target_scaler = _load_target_scaler(config.TARGET_SCALER_FILE)
 
     checkpoint_path = Path(config.BEST_CHECKPOINT_PATH)
-    if not checkpoint_path.exists():
+    if not config.BEST_CHECKPOINT_PATH.exists():
         raise FileNotFoundError(
-            f"Checkpoint file not found: {checkpoint_path}."
+            f"Checkpoint file not found: {config.BEST_CHECKPOINT_PATH}."
         )
 
     model = get_model(config.MODEL_NAME)
@@ -376,7 +408,7 @@ def main() -> None:
     evaluator = Evaluator(
         model=model,
         test_loader=test_loader,
-        checkpoint_path=checkpoint_path,
+        checkpoint_path=config.BEST_CHECKPOINT_PATH,
         target_scaler=target_scaler,
         device=device,
     )
@@ -392,16 +424,16 @@ def main() -> None:
     plotter.plot_prediction_scatter(results["predictions"], results["targets"])
 
     predictions_path = Path(config.PREDICTIONS_FILE)
-    _save_predictions(predictions_path, results["predictions"], results["targets"])
+    _save_predictions(config.PREDICTIONS_FILE, results["predictions"], results["targets"])
 
     metrics_path = Path(config.EVALUATION_METRICS_FILE)
-    _save_metrics(metrics_path, results["metrics"])
+    _save_metrics(config.EVALUATION_METRICS_FILE, results["metrics"])
 
     _print_summary(
         metrics=results["metrics"],
-        predictions_path=predictions_path,
-        metrics_path=metrics_path,
-        plots_directory=Path(config.EVALUATION_PLOTS_DIR),
+        predictions_path=config.PREDICTIONS_FILE,
+        metrics_path=config.EVALUATION_METRICS_FILE,
+        plots_directory=config.EVALUATION_PLOTS_DIR,
     )
 
 
