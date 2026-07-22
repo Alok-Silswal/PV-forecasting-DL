@@ -451,7 +451,8 @@ def main() -> None:
             )
             continue
 
-        _set_seed(config.RANDOM_SEED)
+        run_seed = config.RANDOM_SEED + (run_number - 1)
+        _set_seed(run_seed)
         _create_run_folders()
         _train_single_run()
 
