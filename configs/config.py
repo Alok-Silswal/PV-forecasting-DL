@@ -61,6 +61,45 @@ MODEL_EVALUATION_DIR = EVALUATION_DIR / MODEL_NAME / HORIZON_DIR_NAME
 
 
 # =============================================================================
+# Multi-Run Experiment Management
+# =============================================================================
+# NUM_RUNS controls how many repeated runs are averaged for a given
+# model/horizon combination (e.g. for reporting mean +/- std across
+# seeds). RUN_NUMBER selects which individual run is currently active;
+# it must be in [1, NUM_RUNS]. RUN_NAME derives the per-run directory
+# segment from RUN_NUMBER and must never be set independently.
+#
+# Directory hierarchy becomes:
+#   experiments/<model>/horizon_<h>/run_<n>/       (per-run artifacts)
+#   experiments/<model>/horizon_<h>/average/       (aggregated across runs)
+#   evaluation/<model>/horizon_<h>/run_<n>/
+#   evaluation/<model>/horizon_<h>/average/
+
+NUM_RUNS = 5
+RUN_NUMBER = 1
+RUN_NAME = f"run_{RUN_NUMBER}"
+
+RUN_EXPERIMENT_DIR = MODEL_EXPERIMENT_DIR / RUN_NAME
+RUN_EVALUATION_DIR = MODEL_EVALUATION_DIR / RUN_NAME
+
+AVERAGE_EXPERIMENT_DIR = MODEL_EXPERIMENT_DIR / "average"
+AVERAGE_EVALUATION_DIR = MODEL_EVALUATION_DIR / "average"
+
+# Full list of per-run directories across all NUM_RUNS, used by
+# aggregation utilities (e.g. computing mean/std across runs) so that
+# run-path construction never needs to be duplicated outside config.py.
+ALL_RUN_EXPERIMENT_DIRS = [
+    MODEL_EXPERIMENT_DIR / f"run_{i}"
+    for i in range(1, NUM_RUNS + 1)
+]
+
+ALL_RUN_EVALUATION_DIRS = [
+    MODEL_EVALUATION_DIR / f"run_{i}"
+    for i in range(1, NUM_RUNS + 1)
+]
+
+
+# =============================================================================
 # Dataset
 # =============================================================================
 
@@ -236,7 +275,7 @@ NUM_WORKERS = 0
 # Checkpointing
 # =============================================================================
 
-CHECKPOINT_DIR = MODEL_EXPERIMENT_DIR / "checkpoints"
+CHECKPOINT_DIR = RUN_EXPERIMENT_DIR / "checkpoints"
 
 BEST_CHECKPOINT_PATH = CHECKPOINT_DIR / "best_checkpoint.pt"
 
@@ -263,7 +302,7 @@ SCHEDULER_MIN_LR = 1e-6
 # Training History Output
 # =============================================================================
 
-HISTORY_FILE = MODEL_EXPERIMENT_DIR / "history.json"
+HISTORY_FILE = RUN_EXPERIMENT_DIR / "history.json"
 
 # =============================================================================
 # Evaluation
@@ -271,9 +310,9 @@ HISTORY_FILE = MODEL_EXPERIMENT_DIR / "history.json"
 
 MAX_PLOT_SAMPLES = 1000
 
-EVALUATION_RESULTS_DIR = MODEL_EVALUATION_DIR / "results"
+EVALUATION_RESULTS_DIR = RUN_EVALUATION_DIR / "results"
 
-EVALUATION_PLOTS_DIR = MODEL_EVALUATION_DIR / "plots"
+EVALUATION_PLOTS_DIR = RUN_EVALUATION_DIR / "plots"
 
 PREDICTIONS_FILE = EVALUATION_RESULTS_DIR / "predictions.csv"
 
