@@ -18,7 +18,7 @@ from models.proposed_model import ProposedModel
 from models.comparison_models.cnn import CNN
 from models.comparison_models.lstm import LSTM
 from models.comparison_models.cnn_lstm import CNNLSTM
-from models.sequential_proposed_model import SequentialProposedModel
+from models.dcnn_rbilstm import SequentialProposedModel
 
 def _load_proposed_hpo_kwargs() -> dict:
     """
