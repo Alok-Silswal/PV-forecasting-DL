@@ -18,7 +18,7 @@ from models.proposed_model import ProposedModel
 from models.comparison_models.cnn import CNN
 from models.comparison_models.lstm import LSTM
 from models.comparison_models.cnn_lstm import CNNLSTM
-from models.dcnn_rbilstm import SequentialProposedModel
+from models.dcnn_rbilstm import DCNNResidualBiLSTM
 
 def _load_proposed_hpo_kwargs() -> dict:
     """
@@ -104,21 +104,8 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
     if model_name == "proposed":
         return ProposedModel(**kwargs)
 
-    if model_name == "proposed_no_fa":
-        return ProposedModel(use_feature_attention=False, **kwargs)
-
     if model_name == "proposed_no_ta":
         return ProposedModel(use_temporal_attention=False, **kwargs)
-
-    if model_name == "proposed_no_fusion":
-        return ProposedModel(use_scalar_gated_fusion=False, **kwargs)
-
-    if model_name == "proposed_no_fa_no_fusion":
-        return ProposedModel(
-            use_feature_attention=False,
-            use_scalar_gated_fusion=False,
-            **kwargs,
-        )
 
     if model_name == "proposed_hpo":
         hpo_kwargs = _load_proposed_hpo_kwargs()
@@ -133,43 +120,18 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
 
     if model_name == "cnn_lstm":
         return CNNLSTM(**kwargs)
-    
-    if model_name == "sequential_proposed":
-        return SequentialProposedModel(**kwargs)
 
-    if model_name == "sequential_no_fa":
-        return SequentialProposedModel(
-            use_feature_attention=False,
-            **kwargs,
-        )
-
-    if model_name == "sequential_no_ta":
-        return SequentialProposedModel(
-            use_temporal_attention=False,
-            **kwargs,
-        )
-
-    if model_name == "sequential_no_fa_no_ta":
-        return SequentialProposedModel(
-            use_feature_attention=False,
-            use_temporal_attention=False,
-            **kwargs,
-        )
+    if model_name == "dcnn_rbilstm":
+        return DCNNResidualBiLSTM(**kwargs)
 
     available_models = [
         "proposed",
-        "proposed_no_fa",
         "proposed_no_ta",
-        "proposed_no_fusion",
-        "proposed_no_fa_no_fusion",
         "proposed_hpo",
         "cnn",
         "lstm",
         "cnn_lstm",
-        "sequential_proposed",
-        "sequential_no_fa",
-        "sequential_no_ta",
-        "sequential_no_fa_no_ta",
+        "dcnn_rbilstm",
     ]
 
     raise ValueError(
