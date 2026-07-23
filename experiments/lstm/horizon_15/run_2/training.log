@@ -1,0 +1,91 @@
+2026-07-23 13:12:15 | INFO | Epoch 1/100 | train_loss: 0.045827 | val_loss: 0.027848 | rmse: 0.166877 | mae: 0.061463 | mape: 62.4162% | r2: 0.971646 | nrmse: 0.049103 | lr: 0.00100000
+2026-07-23 13:12:15 | INFO | Saved new best checkpoint at epoch 1 (val_loss: 0.027848) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:12:30 | INFO | Epoch 2/100 | train_loss: 0.036726 | val_loss: 0.026724 | rmse: 0.163474 | mae: 0.061269 | mape: 58.1024% | r2: 0.972790 | nrmse: 0.048102 | lr: 0.00100000
+2026-07-23 13:12:30 | INFO | Saved new best checkpoint at epoch 2 (val_loss: 0.026724) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:12:46 | INFO | Epoch 3/100 | train_loss: 0.035193 | val_loss: 0.026345 | rmse: 0.162311 | mae: 0.064944 | mape: 54.1959% | r2: 0.973176 | nrmse: 0.047759 | lr: 0.00100000
+2026-07-23 13:12:46 | INFO | Saved new best checkpoint at epoch 3 (val_loss: 0.026345) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:13:02 | INFO | Epoch 4/100 | train_loss: 0.034444 | val_loss: 0.025948 | rmse: 0.161084 | mae: 0.056718 | mape: 54.5048% | r2: 0.973580 | nrmse: 0.047398 | lr: 0.00100000
+2026-07-23 13:13:02 | INFO | Saved new best checkpoint at epoch 4 (val_loss: 0.025948) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:13:18 | INFO | Epoch 5/100 | train_loss: 0.034005 | val_loss: 0.026012 | rmse: 0.161283 | mae: 0.057231 | mape: 59.7630% | r2: 0.973515 | nrmse: 0.047457 | lr: 0.00100000
+2026-07-23 13:13:34 | INFO | Epoch 6/100 | train_loss: 0.033676 | val_loss: 0.026615 | rmse: 0.163142 | mae: 0.069280 | mape: 55.1064% | r2: 0.972901 | nrmse: 0.048004 | lr: 0.00100000
+2026-07-23 13:13:50 | INFO | Epoch 7/100 | train_loss: 0.033402 | val_loss: 0.025777 | rmse: 0.160553 | mae: 0.065044 | mape: 55.2387% | r2: 0.973754 | nrmse: 0.047242 | lr: 0.00100000
+2026-07-23 13:13:50 | INFO | Saved new best checkpoint at epoch 7 (val_loss: 0.025777) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:14:06 | INFO | Epoch 8/100 | train_loss: 0.033224 | val_loss: 0.025628 | rmse: 0.160088 | mae: 0.055348 | mape: 58.0438% | r2: 0.973906 | nrmse: 0.047105 | lr: 0.00100000
+2026-07-23 13:14:06 | INFO | Saved new best checkpoint at epoch 8 (val_loss: 0.025628) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:14:22 | INFO | Epoch 9/100 | train_loss: 0.033123 | val_loss: 0.025444 | rmse: 0.159510 | mae: 0.057044 | mape: 56.9453% | r2: 0.974094 | nrmse: 0.046935 | lr: 0.00100000
+2026-07-23 13:14:22 | INFO | Saved new best checkpoint at epoch 9 (val_loss: 0.025444) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:14:38 | INFO | Epoch 10/100 | train_loss: 0.033009 | val_loss: 0.025365 | rmse: 0.159264 | mae: 0.058024 | mape: 54.6333% | r2: 0.974174 | nrmse: 0.046863 | lr: 0.00100000
+2026-07-23 13:14:38 | INFO | Saved new best checkpoint at epoch 10 (val_loss: 0.025365) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:14:54 | INFO | Epoch 11/100 | train_loss: 0.032845 | val_loss: 0.025252 | rmse: 0.158909 | mae: 0.056114 | mape: 53.0712% | r2: 0.974289 | nrmse: 0.046758 | lr: 0.00100000
+2026-07-23 13:14:54 | INFO | Saved new best checkpoint at epoch 11 (val_loss: 0.025252) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:15:10 | INFO | Epoch 12/100 | train_loss: 0.032770 | val_loss: 0.025312 | rmse: 0.159097 | mae: 0.061375 | mape: 54.0601% | r2: 0.974228 | nrmse: 0.046814 | lr: 0.00100000
+2026-07-23 13:15:26 | INFO | Epoch 13/100 | train_loss: 0.032742 | val_loss: 0.025190 | rmse: 0.158715 | mae: 0.057187 | mape: 52.5913% | r2: 0.974351 | nrmse: 0.046701 | lr: 0.00100000
+2026-07-23 13:15:26 | INFO | Saved new best checkpoint at epoch 13 (val_loss: 0.025190) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:15:42 | INFO | Epoch 14/100 | train_loss: 0.032691 | val_loss: 0.027048 | rmse: 0.164462 | mae: 0.069599 | mape: 54.6698% | r2: 0.972460 | nrmse: 0.048392 | lr: 0.00100000
+2026-07-23 13:15:58 | INFO | Epoch 15/100 | train_loss: 0.032629 | val_loss: 0.025404 | rmse: 0.159387 | mae: 0.058923 | mape: 50.2681% | r2: 0.974134 | nrmse: 0.046899 | lr: 0.00100000
+2026-07-23 13:16:14 | INFO | Epoch 16/100 | train_loss: 0.032576 | val_loss: 0.025398 | rmse: 0.159369 | mae: 0.069531 | mape: 53.1686% | r2: 0.974140 | nrmse: 0.046894 | lr: 0.00100000
+2026-07-23 13:16:30 | INFO | Epoch 17/100 | train_loss: 0.032480 | val_loss: 0.025169 | rmse: 0.158648 | mae: 0.056433 | mape: 57.6354% | r2: 0.974373 | nrmse: 0.046681 | lr: 0.00100000
+2026-07-23 13:16:30 | INFO | Saved new best checkpoint at epoch 17 (val_loss: 0.025169) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:16:46 | INFO | Epoch 18/100 | train_loss: 0.032411 | val_loss: 0.026437 | rmse: 0.162594 | mae: 0.068096 | mape: 49.8428% | r2: 0.973082 | nrmse: 0.047843 | lr: 0.00100000
+2026-07-23 13:17:03 | INFO | Epoch 19/100 | train_loss: 0.032384 | val_loss: 0.025287 | rmse: 0.159018 | mae: 0.059599 | mape: 54.9161% | r2: 0.974254 | nrmse: 0.046790 | lr: 0.00100000
+2026-07-23 13:17:19 | INFO | Epoch 20/100 | train_loss: 0.032379 | val_loss: 0.025287 | rmse: 0.159020 | mae: 0.057236 | mape: 48.8784% | r2: 0.974253 | nrmse: 0.046791 | lr: 0.00100000
+2026-07-23 13:17:35 | INFO | Epoch 21/100 | train_loss: 0.032336 | val_loss: 0.025196 | rmse: 0.158733 | mae: 0.060134 | mape: 54.9600% | r2: 0.974346 | nrmse: 0.046706 | lr: 0.00100000
+2026-07-23 13:17:51 | INFO | Epoch 22/100 | train_loss: 0.032246 | val_loss: 0.025670 | rmse: 0.160218 | mae: 0.063900 | mape: 49.5596% | r2: 0.973863 | nrmse: 0.047143 | lr: 0.00100000
+2026-07-23 13:18:07 | INFO | Epoch 23/100 | train_loss: 0.032327 | val_loss: 0.025505 | rmse: 0.159702 | mae: 0.066982 | mape: 51.7803% | r2: 0.974031 | nrmse: 0.046992 | lr: 0.00050000
+2026-07-23 13:18:23 | INFO | Epoch 24/100 | train_loss: 0.031855 | val_loss: 0.024660 | rmse: 0.157034 | mae: 0.056026 | mape: 52.3917% | r2: 0.974892 | nrmse: 0.046207 | lr: 0.00050000
+2026-07-23 13:18:23 | INFO | Saved new best checkpoint at epoch 24 (val_loss: 0.024660) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:18:40 | INFO | Epoch 25/100 | train_loss: 0.031736 | val_loss: 0.025282 | rmse: 0.159004 | mae: 0.063408 | mape: 49.5574% | r2: 0.974258 | nrmse: 0.046786 | lr: 0.00050000
+2026-07-23 13:18:56 | INFO | Epoch 26/100 | train_loss: 0.031690 | val_loss: 0.025330 | rmse: 0.159153 | mae: 0.064490 | mape: 51.0012% | r2: 0.974210 | nrmse: 0.046830 | lr: 0.00050000
+2026-07-23 13:19:12 | INFO | Epoch 27/100 | train_loss: 0.031709 | val_loss: 0.024778 | rmse: 0.157411 | mae: 0.059237 | mape: 52.4607% | r2: 0.974771 | nrmse: 0.046318 | lr: 0.00050000
+2026-07-23 13:19:29 | INFO | Epoch 28/100 | train_loss: 0.031690 | val_loss: 0.025019 | rmse: 0.158176 | mae: 0.062935 | mape: 55.6498% | r2: 0.974526 | nrmse: 0.046542 | lr: 0.00050000
+2026-07-23 13:19:45 | INFO | Epoch 29/100 | train_loss: 0.031647 | val_loss: 0.025053 | rmse: 0.158281 | mae: 0.056195 | mape: 53.8118% | r2: 0.974491 | nrmse: 0.046574 | lr: 0.00050000
+2026-07-23 13:20:01 | INFO | Epoch 30/100 | train_loss: 0.031630 | val_loss: 0.025088 | rmse: 0.158392 | mae: 0.060689 | mape: 49.0895% | r2: 0.974456 | nrmse: 0.046606 | lr: 0.00025000
+2026-07-23 13:20:17 | INFO | Epoch 31/100 | train_loss: 0.031343 | val_loss: 0.024771 | rmse: 0.157387 | mae: 0.057665 | mape: 50.2173% | r2: 0.974779 | nrmse: 0.046310 | lr: 0.00025000
+2026-07-23 13:20:33 | INFO | Epoch 32/100 | train_loss: 0.031461 | val_loss: 0.025293 | rmse: 0.159038 | mae: 0.059699 | mape: 47.6632% | r2: 0.974247 | nrmse: 0.046796 | lr: 0.00025000
+2026-07-23 13:20:50 | INFO | Epoch 33/100 | train_loss: 0.031363 | val_loss: 0.024765 | rmse: 0.157369 | mae: 0.060824 | mape: 53.2864% | r2: 0.974785 | nrmse: 0.046305 | lr: 0.00025000
+2026-07-23 13:21:06 | INFO | Epoch 34/100 | train_loss: 0.031364 | val_loss: 0.024644 | rmse: 0.156984 | mae: 0.055419 | mape: 49.6763% | r2: 0.974908 | nrmse: 0.046192 | lr: 0.00025000
+2026-07-23 13:21:06 | INFO | Saved new best checkpoint at epoch 34 (val_loss: 0.024644) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:21:23 | INFO | Epoch 35/100 | train_loss: 0.031271 | val_loss: 0.024608 | rmse: 0.156871 | mae: 0.061147 | mape: 53.2075% | r2: 0.974944 | nrmse: 0.046159 | lr: 0.00025000
+2026-07-23 13:21:23 | INFO | Saved new best checkpoint at epoch 35 (val_loss: 0.024608) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:21:39 | INFO | Epoch 36/100 | train_loss: 0.031237 | val_loss: 0.024677 | rmse: 0.157088 | mae: 0.058519 | mape: 52.0802% | r2: 0.974874 | nrmse: 0.046223 | lr: 0.00025000
+2026-07-23 13:21:55 | INFO | Epoch 37/100 | train_loss: 0.031250 | val_loss: 0.024681 | rmse: 0.157101 | mae: 0.057826 | mape: 51.9777% | r2: 0.974870 | nrmse: 0.046226 | lr: 0.00025000
+2026-07-23 13:22:12 | INFO | Epoch 38/100 | train_loss: 0.031283 | val_loss: 0.024788 | rmse: 0.157443 | mae: 0.058957 | mape: 50.9311% | r2: 0.974761 | nrmse: 0.046327 | lr: 0.00025000
+2026-07-23 13:22:28 | INFO | Epoch 39/100 | train_loss: 0.031278 | val_loss: 0.024657 | rmse: 0.157025 | mae: 0.061662 | mape: 52.1129% | r2: 0.974895 | nrmse: 0.046204 | lr: 0.00025000
+2026-07-23 13:22:45 | INFO | Epoch 40/100 | train_loss: 0.031244 | val_loss: 0.024616 | rmse: 0.156896 | mae: 0.053771 | mape: 55.5660% | r2: 0.974936 | nrmse: 0.046166 | lr: 0.00025000
+2026-07-23 13:23:01 | INFO | Epoch 41/100 | train_loss: 0.031253 | val_loss: 0.024731 | rmse: 0.157261 | mae: 0.055252 | mape: 48.3852% | r2: 0.974819 | nrmse: 0.046273 | lr: 0.00012500
+2026-07-23 13:23:18 | INFO | Epoch 42/100 | train_loss: 0.031122 | val_loss: 0.024439 | rmse: 0.156331 | mae: 0.055481 | mape: 51.2660% | r2: 0.975116 | nrmse: 0.046000 | lr: 0.00012500
+2026-07-23 13:23:18 | INFO | Saved new best checkpoint at epoch 42 (val_loss: 0.024439) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:23:34 | INFO | Epoch 43/100 | train_loss: 0.031068 | val_loss: 0.024467 | rmse: 0.156419 | mae: 0.054153 | mape: 50.8912% | r2: 0.975088 | nrmse: 0.046026 | lr: 0.00012500
+2026-07-23 13:23:51 | INFO | Epoch 44/100 | train_loss: 0.031048 | val_loss: 0.024496 | rmse: 0.156510 | mae: 0.055540 | mape: 50.9135% | r2: 0.975059 | nrmse: 0.046053 | lr: 0.00012500
+2026-07-23 13:24:07 | INFO | Epoch 45/100 | train_loss: 0.031022 | val_loss: 0.024559 | rmse: 0.156713 | mae: 0.055902 | mape: 52.6650% | r2: 0.974994 | nrmse: 0.046112 | lr: 0.00012500
+2026-07-23 13:24:24 | INFO | Epoch 46/100 | train_loss: 0.030986 | val_loss: 0.024439 | rmse: 0.156331 | mae: 0.055733 | mape: 51.5553% | r2: 0.975116 | nrmse: 0.046000 | lr: 0.00012500
+2026-07-23 13:24:24 | INFO | Saved new best checkpoint at epoch 46 (val_loss: 0.024439) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:24:40 | INFO | Epoch 47/100 | train_loss: 0.031007 | val_loss: 0.024584 | rmse: 0.156794 | mae: 0.060585 | mape: 51.6304% | r2: 0.974968 | nrmse: 0.046136 | lr: 0.00012500
+2026-07-23 13:24:57 | INFO | Epoch 48/100 | train_loss: 0.031017 | val_loss: 0.024610 | rmse: 0.156877 | mae: 0.059402 | mape: 52.7047% | r2: 0.974942 | nrmse: 0.046160 | lr: 0.00006250
+2026-07-23 13:25:13 | INFO | Epoch 49/100 | train_loss: 0.030932 | val_loss: 0.024578 | rmse: 0.156775 | mae: 0.056658 | mape: 50.1913% | r2: 0.974975 | nrmse: 0.046130 | lr: 0.00006250
+2026-07-23 13:25:30 | INFO | Epoch 50/100 | train_loss: 0.030904 | val_loss: 0.024560 | rmse: 0.156715 | mae: 0.058013 | mape: 51.1105% | r2: 0.974994 | nrmse: 0.046113 | lr: 0.00006250
+2026-07-23 13:25:47 | INFO | Epoch 51/100 | train_loss: 0.030880 | val_loss: 0.024457 | rmse: 0.156388 | mae: 0.058227 | mape: 51.3312% | r2: 0.975098 | nrmse: 0.046017 | lr: 0.00006250
+2026-07-23 13:26:03 | INFO | Epoch 52/100 | train_loss: 0.030876 | val_loss: 0.024517 | rmse: 0.156579 | mae: 0.058249 | mape: 50.8450% | r2: 0.975037 | nrmse: 0.046073 | lr: 0.00006250
+2026-07-23 13:26:20 | INFO | Epoch 53/100 | train_loss: 0.030824 | val_loss: 0.024452 | rmse: 0.156372 | mae: 0.054531 | mape: 51.1982% | r2: 0.975103 | nrmse: 0.046012 | lr: 0.00006250
+2026-07-23 13:26:36 | INFO | Epoch 54/100 | train_loss: 0.030889 | val_loss: 0.024517 | rmse: 0.156578 | mae: 0.055964 | mape: 50.3106% | r2: 0.975037 | nrmse: 0.046072 | lr: 0.00003125
+2026-07-23 13:26:53 | INFO | Epoch 55/100 | train_loss: 0.030876 | val_loss: 0.024506 | rmse: 0.156544 | mae: 0.056056 | mape: 50.2965% | r2: 0.975048 | nrmse: 0.046062 | lr: 0.00003125
+2026-07-23 13:27:09 | INFO | Epoch 56/100 | train_loss: 0.030784 | val_loss: 0.024423 | rmse: 0.156279 | mae: 0.055800 | mape: 51.7260% | r2: 0.975133 | nrmse: 0.045984 | lr: 0.00003125
+2026-07-23 13:27:09 | INFO | Saved new best checkpoint at epoch 56 (val_loss: 0.024423) -> /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/checkpoints/best_checkpoint.pt
+2026-07-23 13:27:26 | INFO | Epoch 57/100 | train_loss: 0.030856 | val_loss: 0.024488 | rmse: 0.156486 | mae: 0.057283 | mape: 51.8426% | r2: 0.975067 | nrmse: 0.046045 | lr: 0.00003125
+2026-07-23 13:27:42 | INFO | Epoch 58/100 | train_loss: 0.030778 | val_loss: 0.024523 | rmse: 0.156597 | mae: 0.056778 | mape: 51.0978% | r2: 0.975031 | nrmse: 0.046078 | lr: 0.00003125
+2026-07-23 13:27:59 | INFO | Epoch 59/100 | train_loss: 0.030846 | val_loss: 0.024454 | rmse: 0.156379 | mae: 0.055077 | mape: 51.6073% | r2: 0.975101 | nrmse: 0.046014 | lr: 0.00003125
+2026-07-23 13:28:16 | INFO | Epoch 60/100 | train_loss: 0.030848 | val_loss: 0.024548 | rmse: 0.156677 | mae: 0.055758 | mape: 50.5115% | r2: 0.975006 | nrmse: 0.046102 | lr: 0.00003125
+2026-07-23 13:28:32 | INFO | Epoch 61/100 | train_loss: 0.030804 | val_loss: 0.024512 | rmse: 0.156562 | mae: 0.058680 | mape: 51.7408% | r2: 0.975043 | nrmse: 0.046068 | lr: 0.00003125
+2026-07-23 13:28:49 | INFO | Epoch 62/100 | train_loss: 0.030860 | val_loss: 0.024450 | rmse: 0.156364 | mae: 0.056455 | mape: 50.8305% | r2: 0.975106 | nrmse: 0.046009 | lr: 0.00001563
+2026-07-23 13:29:05 | INFO | Epoch 63/100 | train_loss: 0.030777 | val_loss: 0.024490 | rmse: 0.156493 | mae: 0.056954 | mape: 50.9223% | r2: 0.975064 | nrmse: 0.046048 | lr: 0.00001563
+2026-07-23 13:29:22 | INFO | Epoch 64/100 | train_loss: 0.030786 | val_loss: 0.024491 | rmse: 0.156496 | mae: 0.055407 | mape: 50.7452% | r2: 0.975063 | nrmse: 0.046048 | lr: 0.00001563
+2026-07-23 13:29:39 | INFO | Epoch 65/100 | train_loss: 0.030829 | val_loss: 0.024556 | rmse: 0.156702 | mae: 0.057528 | mape: 50.8763% | r2: 0.974998 | nrmse: 0.046109 | lr: 0.00001563
+2026-07-23 13:29:55 | INFO | Epoch 66/100 | train_loss: 0.030813 | val_loss: 0.024532 | rmse: 0.156626 | mae: 0.057015 | mape: 50.4018% | r2: 0.975022 | nrmse: 0.046087 | lr: 0.00001563
+2026-07-23 13:30:12 | INFO | Epoch 67/100 | train_loss: 0.030818 | val_loss: 0.024538 | rmse: 0.156645 | mae: 0.057935 | mape: 50.6558% | r2: 0.975016 | nrmse: 0.046092 | lr: 0.00001563
+2026-07-23 13:30:29 | INFO | Epoch 68/100 | train_loss: 0.030755 | val_loss: 0.024517 | rmse: 0.156578 | mae: 0.056199 | mape: 50.3644% | r2: 0.975038 | nrmse: 0.046072 | lr: 0.00000781
+2026-07-23 13:30:46 | INFO | Epoch 69/100 | train_loss: 0.030804 | val_loss: 0.024473 | rmse: 0.156437 | mae: 0.056128 | mape: 50.5455% | r2: 0.975082 | nrmse: 0.046031 | lr: 0.00000781
+2026-07-23 13:31:02 | INFO | Epoch 70/100 | train_loss: 0.030824 | val_loss: 0.024461 | rmse: 0.156400 | mae: 0.056778 | mape: 50.7091% | r2: 0.975094 | nrmse: 0.046020 | lr: 0.00000781
+2026-07-23 13:31:19 | INFO | Epoch 71/100 | train_loss: 0.030800 | val_loss: 0.024493 | rmse: 0.156501 | mae: 0.056507 | mape: 50.3265% | r2: 0.975062 | nrmse: 0.046050 | lr: 0.00000781
+2026-07-23 13:31:19 | INFO | Early stopping triggered at epoch 71 (no improvement for 15 epochs).
+2026-07-23 13:31:19 | INFO | Training history saved to /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2/history.json
+2026-07-23 13:31:19 | INFO | Baseline experiment analysis complete for /kaggle/working/PV-forecasting-DL/experiments/lstm/horizon_15/run_2.
