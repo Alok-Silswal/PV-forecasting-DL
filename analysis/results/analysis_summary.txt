@@ -1,11 +1,9 @@
-Timestamp: 2026-07-24T17:34:43+00:00
+Timestamp: 2026-07-24T19:22:33+00:00
 Evaluation directory: C:\Users\silsw\OneDrive\Desktop\PV-forecasting\evaluation
 Output directory: C:\Users\silsw\OneDrive\Desktop\PV-forecasting\analysis\results
 Models analysed (6): cnn, cnn_lstm, dcnn_rbilstm, lstm, proposed, proposed_no_ta
 Horizons analysed (1): horizon_15
 Descriptive warnings: 15
-Significance warnings: 10
-Friedman tests performed: 5
-Friedman tests significant: 5
-Pairwise comparisons: 25
-Pairwise comparisons significant: 0
+Number of Friedman tests performed: 5
+Number of significant Friedman tests: 5
+Average rank table generated: True

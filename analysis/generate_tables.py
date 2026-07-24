@@ -5,14 +5,17 @@ Converts already-computed statistical results into publication-ready
 tables.
 
 This module performs NO filesystem loading, NO descriptive-statistics
-computation, and NO significance testing (Friedman, Wilcoxon, Holm
-correction, effect sizes). It consumes the outputs of
+computation, and NO significance testing (Friedman). It consumes the
+outputs of
 
     analysis.descriptive_statistics.compute_descriptive_statistics
     analysis.significance_tests.run_significance_analysis
 
 exactly as those modules define them, and reshapes the results into
-flat tables suitable for a paper or report.
+flat tables suitable for a paper or report. The average-rank table
+additionally consumes the loader's raw `all_metrics` structure
+directly (see Table 3 below), since per-run values -- not just the
+Friedman summary -- are needed to compute ranks.
 
 ====================================================================
 EXPORT FORMAT: DECISION
@@ -75,7 +78,7 @@ VALIDATION
 Earlier modules (`compute_descriptive_statistics`,
 `run_significance_analysis`) are the source of statistical truth and
 have already validated their inputs (e.g. non-empty run lists, minimum
-run counts for Wilcoxon). This module does not re-derive or re-check
+run counts for Friedman). This module does not re-derive or re-check
 statistical correctness. It performs only lightweight structural
 validation appropriate to a formatting layer:
   - guard against a completely empty input (produces an empty,
@@ -89,9 +92,12 @@ validation appropriate to a formatting layer:
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
+from scipy.stats import rankdata
 
 from analysis.descriptive_statistics import StatisticsResults
+from analysis.load_metrics import ModelMetrics
 from analysis.significance_tests import SignificanceResults
 
 PublicationTables = dict[str, pd.DataFrame]
@@ -99,7 +105,7 @@ PublicationTables = dict[str, pd.DataFrame]
 __all__ = [
     "generate_descriptive_table",
     "generate_friedman_table",
-    "generate_pairwise_table",
+    "generate_average_rank_table",
     "generate_all_tables",
     "PublicationTables"
 ]
@@ -212,55 +218,95 @@ def generate_friedman_table(significance: SignificanceResults) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Table 3: Pairwise comparisons
+# Table 3: Average ranks
 # ---------------------------------------------------------------------------
+#
+# DECISION: ACCEPT scipy.stats.rankdata(method="average") for ranking;
+# REJECT a hand-rolled sort-based rank assignment.
+#
+# JUSTIFICATION:
+#   - `rankdata` is the established, tested implementation for this
+#     exact operation and handles tied values by splitting the tied
+#     rank positions evenly (e.g. two models tied for best both get
+#     rank 1.5), which a manual `sorted()`-based assignment would get
+#     wrong (it would silently break ties by insertion/comparison
+#     order instead of reporting the tie honestly).
+#   - Ranking direction (lower-is-better vs. higher-is-better) is
+#     handled by ranking the negated values for higher-is-better
+#     metrics, rather than writing a second, direction-aware ranking
+#     routine -- `rankdata` itself stays the single source of ranking
+#     logic for both directions.
 
-def generate_pairwise_table(significance: SignificanceResults) -> pd.DataFrame:
-    """Build the pairwise (Proposed vs. baseline) comparison table.
+#: Metrics for which a LOWER observed value is better (rank 1 = lowest).
+_LOWER_IS_BETTER_METRICS = {"rmse", "mae", "nrmse", "mape"}
+#: Metrics for which a HIGHER observed value is better (rank 1 = highest).
+_HIGHER_IS_BETTER_METRICS = {"r2"}
 
-    One row per (horizon, metric, baseline). Columns: Horizon, Metric,
-    Baseline, Raw p-value, Holm-adjusted p-value, Significant, Effect
-    size, Effect size method, N effective.
 
-    Rows for a (horizon, metric) cell with no baselines compared (e.g.
-    only one model present) are simply absent -- there is nothing to
-    tabulate, and fabricating a placeholder row would misrepresent the
-    underlying analysis.
+def generate_average_rank_table(
+    all_metrics: dict[str, dict[str, ModelMetrics]],
+) -> pd.DataFrame:
+    """Build the average-rank table.
+
+    For every (horizon, metric) cell, models are ranked against each
+    other independently for each run (rank 1 = best, per the metric's
+    known directionality; ties split evenly via
+    `scipy.stats.rankdata(method="average")`). Ranks are then averaged
+    across runs to give one Average Rank per (horizon, metric, model).
 
     Args:
-        significance: Output of
-            `analysis.significance_tests.run_significance_analysis`.
+        all_metrics: Output of `analysis.load_metrics.load_all_metrics`,
+            shape {model_name: {horizon_name: ModelMetrics}}. Raw
+            per-run values are required here (not the Friedman
+            summary), since ranks must be computed run-by-run.
 
     Returns:
-        A DataFrame sorted by Horizon, Metric, Holm-adjusted p-value.
+        A DataFrame with columns Horizon, Metric, Model, Average Rank,
+        sorted by Horizon, Metric, Average Rank.
     """
-    columns = [
-        "Horizon",
-        "Metric",
-        "Baseline",
-        "Raw p-value",
-        "Holm-adjusted p-value",
-        "Significant",
-        "Effect size",
-        "Effect size method",
-        "N effective",
-    ]
+    columns = ["Horizon", "Metric", "Model", "Average Rank"]
+
+    # Reshape model->horizon->ModelMetrics into horizon->metric->model->
+    # [runs], the axis order per-cell ranking needs. Mirrors the pivot
+    # performed privately in significance_tests.py, but is kept local to
+    # this module rather than importing that module's private helper.
+    pivoted: dict[str, dict[str, dict[str, list[float]]]] = {}
+    for model_name, per_horizon in all_metrics.items():
+        for horizon_name, model_metrics in per_horizon.items():
+            horizon_bucket = pivoted.setdefault(horizon_name, {})
+            for metric_name, values in model_metrics.metrics.items():
+                horizon_bucket.setdefault(metric_name, {})[model_name] = values
+
     rows: list[dict[str, object]] = []
 
-    for horizon_name, per_metric in significance.items():
-        for metric_name, result in per_metric.items():
-            for pairwise in result.pairwise:
+    for horizon_name, per_metric in pivoted.items():
+        for metric_name, model_runs in per_metric.items():
+            higher_is_better = metric_name.lower() in _HIGHER_IS_BETTER_METRICS
+
+            model_names = list(model_runs.keys())
+            # shape (n_models, n_runs)
+            values = np.array([model_runs[m] for m in model_names], dtype=float)
+
+            # Rank each run (column) independently across models, then
+            # average the per-run ranks for each model across runs.
+            per_run_ranks = np.array(
+                [
+                    rankdata(
+                        -values[:, run_idx] if higher_is_better else values[:, run_idx],
+                        method="average",
+                    )
+                    for run_idx in range(values.shape[1])
+                ]
+            )  # shape (n_runs, n_models)
+            average_ranks = per_run_ranks.mean(axis=0)
+
+            for model_name, average_rank in zip(model_names, average_ranks):
                 rows.append(
                     {
                         "Horizon": horizon_name,
                         "Metric": metric_name,
-                        "Baseline": pairwise.baseline,
-                        "Raw p-value": pairwise.raw_p,
-                        "Holm-adjusted p-value": pairwise.adjusted_p,
-                        "Significant": pairwise.significant,
-                        "Effect size": pairwise.effect_size,
-                        "Effect size method": pairwise.effect_size_method,
-                        "N effective": pairwise.n_effective,
+                        "Model": model_name,
+                        "Average Rank": float(average_rank),
                     }
                 )
 
@@ -269,7 +315,7 @@ def generate_pairwise_table(significance: SignificanceResults) -> pd.DataFrame:
         return df
 
     return df.sort_values(
-        ["Horizon", "Metric", "Holm-adjusted p-value"]
+        ["Horizon", "Metric", "Average Rank"]
     ).reset_index(drop=True)
 
 
@@ -280,19 +326,22 @@ def generate_pairwise_table(significance: SignificanceResults) -> pd.DataFrame:
 def generate_all_tables(
     stats: StatisticsResults,
     significance: SignificanceResults,
+    all_metrics: dict[str, dict[str, ModelMetrics]],
 ) -> PublicationTables:
     """Build all three publication tables in one call.
 
     Args:
         stats: Output of `compute_descriptive_statistics`.
         significance: Output of `run_significance_analysis`.
+        all_metrics: Output of `load_all_metrics`, needed by the
+            average-rank table (see `generate_average_rank_table`).
 
     Returns:
-        Dict with keys "descriptive", "friedman", "pairwise" mapping
-        to the corresponding DataFrame.
+        Dict with keys "descriptive", "friedman", "average_ranks"
+        mapping to the corresponding DataFrame.
     """
     return {
         "descriptive": generate_descriptive_table(stats),
         "friedman": generate_friedman_table(significance),
-        "pairwise": generate_pairwise_table(significance),
+        "average_ranks": generate_average_rank_table(all_metrics),
     }

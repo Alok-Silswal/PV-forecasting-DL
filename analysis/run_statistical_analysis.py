@@ -106,7 +106,7 @@ from analysis.run_analysis import AnalysisResults, run_analysis  # noqa: E402
 
 DESCRIPTIVE_CSV_NAME = "descriptive_statistics.csv"
 FRIEDMAN_CSV_NAME = "friedman_results.csv"
-PAIRWISE_CSV_NAME = "pairwise_comparisons.csv"
+AVERAGE_RANKS_CSV_NAME = "average_ranks.csv"
 WORKBOOK_NAME = "statistical_analysis.xlsx"
 SUMMARY_NAME = "analysis_summary.txt"
 
@@ -124,23 +124,23 @@ def _save_tables(results: AnalysisResults, output_dir: Path) -> list[Path]:
     """
     descriptive_df = results.tables["descriptive"]
     friedman_df = results.tables["friedman"]
-    pairwise_df = results.tables["pairwise"]
+    average_ranks_df = results.tables["average_ranks"]
 
     descriptive_path = output_dir / DESCRIPTIVE_CSV_NAME
     friedman_path = output_dir / FRIEDMAN_CSV_NAME
-    pairwise_path = output_dir / PAIRWISE_CSV_NAME
+    average_ranks_path = output_dir / AVERAGE_RANKS_CSV_NAME
     workbook_path = output_dir / WORKBOOK_NAME
 
     descriptive_df.to_csv(descriptive_path, index=False)
     friedman_df.to_csv(friedman_path, index=False)
-    pairwise_df.to_csv(pairwise_path, index=False)
+    average_ranks_df.to_csv(average_ranks_path, index=False)
 
     with pd.ExcelWriter(workbook_path) as writer:
         descriptive_df.to_excel(writer, sheet_name="Descriptive Statistics", index=False)
         friedman_df.to_excel(writer, sheet_name="Friedman Test", index=False)
-        pairwise_df.to_excel(writer, sheet_name="Pairwise Comparisons", index=False)
+        average_ranks_df.to_excel(writer, sheet_name="Average Ranks", index=False)
 
-    return [descriptive_path, friedman_path, pairwise_path, workbook_path]
+    return [descriptive_path, friedman_path, average_ranks_path, workbook_path]
 
 
 def _build_summary_lines(
@@ -167,16 +167,13 @@ def _build_summary_lines(
     )
 
     friedman_df = results.tables["friedman"]
-    pairwise_df = results.tables["pairwise"]
+    average_ranks_df = results.tables["average_ranks"]
 
     n_friedman = len(friedman_df)
     n_friedman_significant = (
         int(friedman_df["Significant"].sum()) if not friedman_df.empty else 0
     )
-    n_pairwise = len(pairwise_df)
-    n_pairwise_significant = (
-        int(pairwise_df["Significant"].sum()) if not pairwise_df.empty else 0
-    )
+    average_rank_table_generated = not average_ranks_df.empty
 
     return [
         f"Timestamp: {timestamp}",
@@ -185,11 +182,9 @@ def _build_summary_lines(
         f"Models analysed ({len(models)}): {', '.join(models)}",
         f"Horizons analysed ({len(horizons)}): {', '.join(horizons)}",
         f"Descriptive warnings: {len(results.descriptive_warnings)}",
-        f"Significance warnings: {len(results.significance_warnings)}",
-        f"Friedman tests performed: {n_friedman}",
-        f"Friedman tests significant: {n_friedman_significant}",
-        f"Pairwise comparisons: {n_pairwise}",
-        f"Pairwise comparisons significant: {n_pairwise_significant}",
+        f"Number of Friedman tests performed: {n_friedman}",
+        f"Number of significant Friedman tests: {n_friedman_significant}",
+        f"Average rank table generated: {average_rank_table_generated}",
     ]
 
 

@@ -25,14 +25,12 @@ DECISION: ACCEPT Option C -- a dedicated `AnalysisResults` dataclass.
 JUSTIFICATION:
   - REJECTED Option A (tables only): this is a real loss of
     information, not a simplification. `MetricStatistics.n` and
-    `.std is None` (the N=1 case), and the per-cell `warnings` on
-    `MetricSignificanceResult`, do not survive the trip through
-    `generate_all_tables` unchanged in a form a caller could
-    still act on programmatically (the descriptive table does carry
-    N and SD=NaN, but the significance-analysis warnings are dropped
-    entirely by table generation, which only reads `.friedman` and
-    `.pairwise`). A notebook user who wants to know *why* a cell has
-    no pairwise rows would have no way to find out from tables alone.
+    `.std is None` (the N=1 case) do not survive the trip through
+    `generate_all_tables` unchanged in a form a caller could still act
+    on programmatically (the descriptive table does carry N and
+    SD=NaN, but that is the only place this distinction is visible;
+    a caller working from tables alone still cannot recover the raw
+    `MetricStatistics` objects).
   - REJECTED Option B (a bare tuple/dict of the four pieces): callers
     would need to memorize positional order or a set of dict keys
     with no static-typing help (`results["descriptive"]` vs
@@ -73,17 +71,14 @@ JUSTIFICATION:
     than merged into a pipeline-wide soup, so a reader can still tell
     an N=1 warning from an average-mismatch warning apart from any
     significance-analysis warning by looking at which list it's in.
-  - `run_significance_analysis` deliberately keeps warnings *inside*
-    each `MetricSignificanceResult` (per the rejection of a merged
-    return structure documented in that module) so that a warning
-    stays attached to the (horizon, metric) cell that produced it even
-    after filtering/sorting. Flattening these into one global list
-    here would undo that design decision one layer up. Instead,
-    `AnalysisResults` exposes the significance results unchanged
-    (`significance`), and a convenience read-only property
-    (`significance_warnings`) is provided purely for the common case
-    of "give me every significance-analysis warning with its cell
-    context", without discarding the per-cell structure itself.
+  - `run_significance_analysis` no longer produces any warnings:
+    its only source of warnings was the pairwise Wilcoxon/Holm stage
+    (e.g. a missing baseline, or all-zero paired differences), and
+    that stage has been removed along with `MetricSignificanceResult
+    .pairwise` and `.warnings`. `AnalysisResults` therefore exposes
+    the significance results unchanged (`significance`) with no
+    accompanying `significance_warnings` property -- there is nothing
+    left for it to flatten.
   - Logging is rejected as the primary channel: this is a library
     function, not an application entry point, and warnings that are
     only visible in log output are not inspectable/testable by a
@@ -111,9 +106,9 @@ ERROR HANDLING
 DECISION: ACCEPT letting exceptions propagate; REJECT catching and
 re-wrapping them.
 
-JUSTIFICATION: `MetricLoaderError` from `load_metrics` and any
-`scipy`/`statsmodels` exceptions from `significance_tests` already
-carry a specific, actionable message about *what* failed and *where*
+JUSTIFICATION: `MetricLoaderError` from `load_metrics` and any `scipy`
+exceptions from `significance_tests` already carry a specific,
+actionable message about *what* failed and *where*
 (e.g. which model/horizon/metric). Catching them here and re-raising a
 generic `AnalysisError` would strip that context for no benefit --
 this module adds no information a caller doesn't already get from the
@@ -165,14 +160,15 @@ class AnalysisResults:
         descriptive_warnings: Non-fatal warnings collected while
             computing descriptive statistics (e.g. N=1 cells,
             declared-average/computed-mean mismatches).
-        significance: Per-horizon, per-metric Friedman and pairwise
-            Wilcoxon/Holm results, as returned by
-            `run_significance_analysis`. Any warnings from this stage
-            live on each `MetricSignificanceResult.warnings`, not on
-            this dataclass -- see `significance_warnings` below for a
-            flattened, read-only view.
+        significance: Per-horizon, per-metric Friedman results, as
+            returned by `run_significance_analysis`. The pairwise
+            Wilcoxon/Holm stage has been removed, so
+            `MetricSignificanceResult` no longer carries a `pairwise`
+            or `warnings` field -- there is nothing left to flatten
+            here, so this dataclass no longer exposes a
+            `significance_warnings` property.
         tables: The three publication-ready DataFrames ("descriptive",
-            "friedman", "pairwise"), as returned by
+            "friedman", "average_ranks"), as returned by
             `generate_all_tables`.
         loader_warnings: Always an empty tuple. `load_all_metrics`
             does not return its warnings -- it only prints them via an
@@ -189,37 +185,6 @@ class AnalysisResults:
     tables: PublicationTables
     loader_warnings: tuple[str, ...] = ()
 
-    @property
-    def significance_warnings(self) -> tuple[str, ...]:
-        """Flatten all significance-analysis warnings."""
-
-        warnings: list[str] = []
-
-        for horizon_results in self.significance.values():
-            for metric_result in horizon_results.values():
-                warnings.extend(metric_result.warnings)
-
-        return tuple(warnings)
-
-@property
-def significance_warnings(self) -> tuple[tuple[str, str, str], ...]:
-    """Structured view of significance-analysis warnings.
-
-    Each entry is ``(horizon, metric, message)``. This is a
-    convenience read-only view; the authoritative warnings remain on
-    ``significance[horizon][metric].warnings``.
-    """
-    flattened: list[tuple[str, str, str]] = []
-
-    for horizon_name, per_metric in self.significance.items():
-        for metric_name, result in per_metric.items():
-            for warning in result.warnings:
-                flattened.append(
-                    (horizon_name, metric_name, warning)
-                )
-
-    return tuple(flattened)
-
 
 def run_analysis(
     evaluation_dir: Path | str,
@@ -232,9 +197,9 @@ def run_analysis(
     """Run the full statistical analysis pipeline end to end.
 
     Loads raw per-run metrics, computes descriptive statistics, runs
-    the Friedman/Wilcoxon/Holm significance pipeline, and builds
-    publication-ready tables -- in that order, threading each stage's
-    output into the next.
+    the Friedman significance pipeline, and builds publication-ready
+    tables -- in that order, threading each stage's output into the
+    next.
 
     Args:
         evaluation_dir: Path to the top-level `evaluation/` directory,
@@ -244,11 +209,13 @@ def run_analysis(
             for details.
         required_metrics: Metric names that must be present in every
             metrics file. Forwarded to `load_all_metrics`.
-        alpha: Significance threshold for both the Friedman and
-            Holm-corrected Wilcoxon tests. Forwarded to
-            `run_significance_analysis`.
-        proposed_model: Name of the model compared against every
-            baseline. Forwarded to `run_significance_analysis`.
+        alpha: Significance threshold for the Friedman test. Forwarded
+            to `run_significance_analysis`.
+        proposed_model: Name of the model required to be present in
+            every (horizon, metric) cell. Forwarded to
+            `run_significance_analysis`, which still validates its
+            presence even though pairwise comparisons against it have
+            been removed.
 
     Returns:
         An `AnalysisResults` instance containing every stage's output.
@@ -276,7 +243,7 @@ def run_analysis(
         proposed_model=proposed_model,
     )
 
-    tables = generate_all_tables(descriptive, significance)
+    tables = generate_all_tables(descriptive, significance, all_metrics)
 
     return AnalysisResults(
         descriptive=descriptive,
