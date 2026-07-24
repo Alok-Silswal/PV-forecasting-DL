@@ -26,6 +26,19 @@ ARTIFACT_DIR = PROJECT_ROOT / "artifacts"
 MODELS_DIR = PROJECT_ROOT / "models"
 EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 EVALUATION_DIR = PROJECT_ROOT / "evaluation"
+RESULTS_DIR = PROJECT_ROOT / "results"
+
+# Output directory for the cross-model statistical analysis pipeline
+# (analysis/run_statistical_analysis.py). Kept separate from
+# EVALUATION_DIR: that directory is the *input* the loader scans
+# (evaluation/<model>/<horizon>/run_*/results/evaluation_metrics.json),
+# and is per-model/per-horizon, whereas this directory holds the
+# cross-model summary tables (CSV/XLSX) produced *from* that data.
+# Writing analysis outputs into EVALUATION_DIR would risk a stray
+# output file being picked up as model/horizon data on a future
+# loader run, since load_metrics.py discovers models/horizons by
+# scanning directory entries rather than an explicit allowlist.
+STATISTICAL_ANALYSIS_DIR = PROJECT_ROOT / "analysis" / "results"
 
 
 # =============================================================================
