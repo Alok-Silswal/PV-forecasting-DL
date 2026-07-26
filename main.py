@@ -357,14 +357,6 @@ def _is_run_complete() -> bool:
     both training and evaluation.
     """
 
-    # Legacy compatibility for existing run_1 results
-    if config.RUN_NUMBER == 1:
-        return (
-            config.HISTORY_FILE.exists()
-            and config.EVALUATION_METRICS_FILE.exists()
-        )
-
-    # Modern runs
     return (
         config.HISTORY_FILE.exists()
         and config.BEST_CHECKPOINT_PATH.exists()
