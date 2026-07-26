@@ -49,10 +49,11 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help=(
-            "Name of the model to evaluate (overrides config.MODEL_NAME "
-            "for this run only). Example: cnn, lstm, cnn_lstm, proposed, "
-            "proposed_no_fa, proposed_no_ta, proposed_no_fusion."
-        ),
+        "Name of the model to evaluate (overrides config.MODEL_NAME "
+        "for this run only). Example: cnn, lstm, cnn_lstm, proposed, "
+        "proposed_no_fa, proposed_no_ta, proposed_no_fusion, "
+        "proposed_no_fa_no_ta_no_fusion."
+    ),
     )
     parser.add_argument(
         "--horizon",
