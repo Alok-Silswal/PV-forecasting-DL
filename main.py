@@ -51,7 +51,12 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Name of the model to train (overrides config.MODEL_NAME for "
             "this run only). Supported: cnn, lstm, cnn_lstm, "
-            "dcnn_rbilstm, proposed, proposed_no_ta."
+            "dcnn_rbilstm, proposed, proposed_no_ta, proposed_no_fa, "
+            "proposed_no_fusion, proposed_no_fa_no_ta_no_fusion, "
+            "proposed_hpo, proposed_phn. 'proposed_phn' is the Parallel "
+            "Hybrid Network extension (classical backbone + compact VQC "
+            "branch); it uses the exact same training pipeline as every "
+            "other model (see models/model_factory.py)."
         ),
     )
     parser.add_argument(
