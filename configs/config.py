@@ -266,6 +266,30 @@ MLP_DROPOUT_RATE = 0.20    # Fixed architecture default (not tuned by HPO)
 
 
 # =============================================================================
+# PHN Quantum Branch (VQC)
+# =============================================================================
+# Settings for the compact quantum prediction branch used only by the
+# "proposed_phn" model (models.vqc_branch.VQCBranch). These have no
+# effect on "proposed" or any other existing model, since only
+# ProposedModel(use_quantum_branch=True) ever constructs a VQCBranch.
+#
+# Kept intentionally minimal: only the settings actually referenced by
+# VQCBranch are exposed here. Qubit count and circuit depth are fixed
+# per the research spec and should not be changed without an explicit
+# experimental reason.
+
+VQC_NUM_QUBITS = 2                 # Fixed: 2-qubit circuit
+
+VQC_DEPTH = 2                      # Fixed: 2 variational layers
+
+VQC_ENCODING = "angle"             # Angle encoding (RY rotation, bounded via tanh * pi)
+
+VQC_SIMULATOR = "lightning.qubit"  # Noiseless statevector simulator; no hardware backend
+
+VQC_DIFF_METHOD = "adjoint"        # Adjoint differentiation (exact, efficient for statevector sims)
+
+
+# =============================================================================
 # Forecast Output Dimension
 # =============================================================================
 
