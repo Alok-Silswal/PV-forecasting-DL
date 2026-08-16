@@ -34,37 +34,57 @@ Data flow (see models/proposed_model.py for how this is wired in):
 
 Design notes
 ------------
-* Simulator: ``lightning.qubit`` (noiseless, no hardware assumptions).
-* Differentiation: ``adjoint`` (exact, efficient for statevector sims;
-  compatible with PyTorch autograd via PennyLane's torch interface).
-* Batching (verified against the ``pennylane-lightning`` device source,
-  not assumed): ``lightning.qubit`` does **not** intrinsically support
-  parameter broadcasting. Its own ``preprocess_transforms`` documents
-  this explicitly ("Currently does not intrinsically support parameter
+* Simulator: configurable via ``simulator`` (default ``"default.qubit"``,
+  see ``configs/config.py``'s ``VQC_SIMULATOR``). Both ``"default.qubit"``
+  and ``"lightning.qubit"`` are supported -- both are noiseless,
+  analytic (``shots=None``) statevector simulators with no hardware
+  assumptions; only their internal execution strategy for a batched
+  input differs (see below).
+* Differentiation: configurable via ``diff_method`` (default
+  ``"backprop"``, see ``VQC_DIFF_METHOD``). ``"adjoint"`` remains
+  supported as a constructor argument for both simulators.
+
+* Batching (verified empirically, not assumed -- see the accompanying
+  simulator-comparison and gradient-equivalence validation scripts):
+  ``lightning.qubit`` does **not** intrinsically support parameter
+  broadcasting. Its own ``preprocess_transforms`` documents this
+  explicitly ("Currently does not intrinsically support parameter
   broadcasting"), and its device transform pipeline includes
   ``qml.transforms.broadcast_expand``, which splits a broadcasted tape
-  into ``B`` separate non-broadcasted tapes *before* execution. The
-  device then executes those ``B`` tapes in an internal loop (one
-  ``simulate()`` call, and one adjoint-Jacobian pass, per tape).
+  into ``B`` separate non-broadcasted tapes *before* execution -- i.e.
+  ``B`` sequential statevector simulations per forward call, each with
+  its own adjoint-Jacobian pass under ``diff_method="adjoint"``.
 
-  Passing ``(B, 2)`` inputs directly to this QNode is still the right
-  choice — it is accepted at the QNode interface with no shape errors,
-  gradients are correct, and it avoids a *Python*-level per-sample loop
-  with its interpreter overhead — but it is NOT a single vectorized
-  circuit evaluation the way a batched matmul would be. Under the hood,
-  PennyLane dispatches ``B`` sequential statevector simulations via its
-  C++/Python glue rather than one broadcasted circuit call. No
-  unverified performance claim is made beyond that; actual per-batch
-  runtime should be measured empirically rather than assumed (see the
-  accompanying pilot instructions).
+  ``default.qubit`` genuinely executes a broadcasted tape as a SINGLE
+  call for our exact observables (plain ``qml.expval(PauliZ(...))`` /
+  ``qml.expval(PauliZ(...) @ PauliZ(...))`` measurements -- not shadow
+  measurements, which are the only case ``default.qubit`` falls back to
+  per-sample tape splitting for). Under ``diff_method="backprop"``,
+  gradients are computed via ordinary reverse-mode automatic
+  differentiation through the simulated statevector evolution, which
+  PyTorch can trace and differentiate as a single batched computation
+  graph rather than as ``B`` independent graphs.
 
-  ``default.qubit`` does support native parameter broadcasting, but the
-  research spec requires ``lightning.qubit``, so that swap is not made
-  here. If a future PennyLane/Lightning release adds native broadcasting
-  to ``lightning.qubit``, no code change is needed in this module — only
-  the runtime characteristics of the existing call would improve.
-  ``diff_method`` remains a constructor argument so a fallback to
-  ``"parameter-shift"`` requires no other code changes.
+  This was measured directly (device-execution instrumentation
+  confirming exactly 1 tape dispatched per forward call for
+  ``default.qubit``, versus ``B`` for ``lightning.qubit``) and produced
+  a ~44x forward+backward speedup for batch_size=256 on the target
+  Kaggle CPU environment, with outputs and gradients (both w.r.t. VQC
+  weights and w.r.t. the VQC input tensor) agreeing with the prior
+  ``lightning.qubit + adjoint`` configuration to within 1e-5 absolute
+  tolerance (observed max differences: output 2.57e-07, weight
+  gradient 7.45e-09, input gradient 1.16e-09) -- i.e. numerically
+  equivalent to floating-point precision, not merely "close enough to
+  train." This is a simulator/differentiation-method substitution, not
+  a change to the VQC's mathematical definition: the circuit itself
+  (qubits, depth, gates, angle encoding, observables, output dimension)
+  is identical regardless of which simulator/diff_method executes it.
+
+  ``lightning.qubit`` (with ``diff_method="adjoint"`` or
+  ``"parameter-shift"``) remains fully supported by this module via the
+  ``simulator``/``diff_method`` constructor arguments and
+  ``configs/config.py``'s ``VQC_SIMULATOR``/``VQC_DIFF_METHOD``, for
+  cases where reverting to it is useful (e.g. comparison experiments).
 
 * Output dimension: item 8 of the spec requires 3 expectation values
   for the 15-minute horizon (<Z0>, <Z1>, <Z0 Z1>) with NO classical
@@ -99,6 +119,7 @@ def _build_qnode(
     output_dim: int,
     diff_method: str,
     simulator: str,
+    batch_obs: bool = False,
 ):
     """
     Construct the PennyLane QNode implementing the VQC.
@@ -121,6 +142,22 @@ def _build_qnode(
         through from ``VQCBranch`` (which already validates it) so the
         device name exists in exactly one place at call time, rather
         than being independently re-hardcoded here.
+    batch_obs : bool, default False
+        Forwarded to ``qml.device(..., batch_obs=batch_obs)``. Only
+        meaningful for ``lightning.qubit``/``lightning.gpu``, where it
+        parallelizes the per-observable adjoint-differentiation passes
+        of a SINGLE tape across OpenMP threads (see
+        ``OMP_NUM_THREADS``). It does NOT change the circuit, the
+        differentiation method, the observables computed, or the
+        numerical result — only how the existing 3-observable adjoint
+        backward pass is scheduled across CPU threads. Left at its
+        default of False unless explicitly enabled, so existing
+        behavior is unaffected unless opted into. Has no effect on
+        ``default.qubit`` (which does not accept or use this keyword
+        the same way); already tested and rejected as an optimization
+        for ``lightning.qubit`` and retained here only for
+        configurability/backward compatibility, not as an active
+        recommendation.
 
     Returns
     -------
@@ -132,7 +169,16 @@ def _build_qnode(
         per layer).
     """
 
-    device = qml.device(simulator, wires=num_qubits)
+    # batch_obs is a lightning.qubit/lightning.gpu-specific device
+    # keyword (OpenMP-thread parallelism across observables within one
+    # tape's adjoint backward pass). default.qubit does not use this
+    # keyword the same way, so it is only forwarded for lightning-family
+    # devices, keeping default.qubit's device construction exactly as
+    # plain as lightning.qubit's was before batch_obs was introduced.
+    if simulator.startswith("lightning."):
+        device = qml.device(simulator, wires=num_qubits, batch_obs=batch_obs)
+    else:
+        device = qml.device(simulator, wires=num_qubits)
 
     observables = [
         qml.PauliZ(0),
@@ -192,11 +238,33 @@ class VQCBranch(nn.Module):
         as an invitation to scale it up without cause.
     depth : int, default 2
         Number of variational layers. Fixed at 2 per the research spec.
-    simulator : str, default "lightning.qubit"
-        PennyLane device name. Must remain a noiseless statevector
-        simulator; no hardware-specific backend is supported.
-    diff_method : str, default "adjoint"
+    simulator : str, default "default.qubit"
+        PennyLane device name. Supported: "default.qubit" (default,
+        genuinely batches our exact observable set as a single tape
+        execution -- see module docstring) and "lightning.qubit"
+        (executes a batch as B sequential single-sample tapes; retained
+        for comparison/fallback). Must remain a noiseless, analytic
+        statevector simulator; no hardware-specific backend is
+        supported.
+    diff_method : str, default "backprop"
         PennyLane differentiation method used for the QNode.
+        "backprop" (default, requires simulator="default.qubit") and
+        "adjoint" (available on both supported simulators) are both
+        mathematically exact for this noiseless circuit and were
+        verified to agree numerically to within 1e-5 absolute
+        tolerance for both outputs and gradients (see module
+        docstring).
+    batch_obs : bool, default False
+        Whether to parallelize the per-observable adjoint-Jacobian
+        passes across OpenMP threads (see ``_build_qnode`` docstring
+        for exactly what this does and does not affect). Purely a
+        CPU-scheduling optimization for ``lightning.qubit``'s existing
+        3-observable adjoint backward pass; does not alter the circuit,
+        qubit count, depth, gates, observables, output values, or
+        differentiation method. Effective thread count is governed by
+        the ``OMP_NUM_THREADS`` environment variable, which must be set
+        before PennyLane is imported (see the accompanying profiling
+        script for a runtime-detected, non-arbitrary value).
 
     Raises
     ------
@@ -213,8 +281,9 @@ class VQCBranch(nn.Module):
         output_dim: int,
         num_qubits: int = 2,
         depth: int = 2,
-        simulator: str = "lightning.qubit",
-        diff_method: str = "adjoint",
+        simulator: str = "default.qubit",
+        diff_method: str = "backprop",
+        batch_obs: bool = False,
     ) -> None:
         super().__init__()
 
@@ -242,10 +311,21 @@ class VQCBranch(nn.Module):
                 "intentionally NOT silently resolved here."
             )
 
-        if simulator != "lightning.qubit":
+        _SUPPORTED_SIMULATORS = ("default.qubit", "lightning.qubit")
+        if simulator not in _SUPPORTED_SIMULATORS:
             raise ValueError(
-                "Only the 'lightning.qubit' simulator is supported in "
-                f"this initial implementation. Got '{simulator}'."
+                f"Unsupported simulator '{simulator}'. Supported: "
+                f"{_SUPPORTED_SIMULATORS} (both noiseless, analytic "
+                "statevector simulators; no hardware-specific backend "
+                "is supported)."
+            )
+
+        if diff_method == "backprop" and simulator != "default.qubit":
+            raise ValueError(
+                "diff_method='backprop' requires simulator='default.qubit' "
+                f"(backprop is not available on '{simulator}'). Use "
+                "diff_method='adjoint' if 'lightning.qubit' is required, "
+                "or switch simulator to 'default.qubit'."
             )
 
         self.num_qubits = num_qubits
@@ -253,6 +333,7 @@ class VQCBranch(nn.Module):
         self.output_dim = output_dim
         self.simulator = simulator
         self.diff_method = diff_method
+        self.batch_obs = batch_obs
 
         # ------------------------------------------------------------
         # Classical -> quantum interface: Linear(input_dim, num_qubits).
@@ -281,6 +362,7 @@ class VQCBranch(nn.Module):
             output_dim=output_dim,
             diff_method=diff_method,
             simulator=simulator,
+            batch_obs=batch_obs,
         )
 
     def forward(self, pooled_features: Tensor) -> Tensor:

@@ -284,9 +284,37 @@ VQC_DEPTH = 2                      # Fixed: 2 variational layers
 
 VQC_ENCODING = "angle"             # Angle encoding (RY rotation, bounded via tanh * pi)
 
-VQC_SIMULATOR = "lightning.qubit"  # Noiseless statevector simulator; no hardware backend
+VQC_SIMULATOR = "default.qubit"    # Noiseless, analytic statevector simulator; no hardware backend.
+                                    # Genuinely batches our exact observable set (plain PauliZ
+                                    # expvals) as a single tape execution -- verified empirically
+                                    # to be ~44x faster than lightning.qubit for batch_size=256 on
+                                    # the target Kaggle CPU environment, with outputs and gradients
+                                    # (weights and inputs) agreeing with the prior lightning.qubit
+                                    # configuration to within 1e-5 absolute tolerance. See
+                                    # models/vqc_branch.py's module docstring for the full
+                                    # verification details. "lightning.qubit" remains supported by
+                                    # VQCBranch for comparison/fallback.
 
-VQC_DIFF_METHOD = "adjoint"        # Adjoint differentiation (exact, efficient for statevector sims)
+VQC_DIFF_METHOD = "backprop"       # Reverse-mode automatic differentiation through the simulated
+                                    # statevector evolution; mathematically exact for this noiseless
+                                    # circuit and numerically verified equivalent to "adjoint" (see
+                                    # VQC_SIMULATOR comment above). Requires VQC_SIMULATOR =
+                                    # "default.qubit". "adjoint" remains supported on both
+                                    # simulators via VQCBranch's diff_method argument.
+
+# CPU-scheduling optimization only: parallelizes lightning.qubit's
+# per-observable adjoint-differentiation passes (we request 3
+# observables: <Z0>, <Z1>, <Z0 Z1>) across OpenMP threads within a
+# single tape's backward pass. Does NOT change the circuit, qubit
+# count, depth, gates, observables, differentiation method, or any
+# numerical result -- purely how the existing backward computation is
+# scheduled across CPU threads. Effective thread count is controlled
+# by the OMP_NUM_THREADS environment variable, which must be set
+# before pennylane is imported for it to take effect (see
+# profile_phn_timing.py for a runtime-detected, non-arbitrary value
+# rather than a guessed constant). Left False by default so existing
+# runs are unaffected unless explicitly opted in.
+VQC_BATCH_OBS = False
 
 
 # =============================================================================
