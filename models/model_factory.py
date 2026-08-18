@@ -19,6 +19,7 @@ from models.comparison_models.cnn import CNN
 from models.comparison_models.lstm import LSTM
 from models.comparison_models.cnn_lstm import CNNLSTM
 from models.dcnn_rbilstm import DCNNResidualBiLSTM
+from models.phn_model import PHNModel
 
 def _load_proposed_hpo_kwargs() -> dict:
     """
@@ -127,13 +128,10 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         return ProposedModel(**hpo_kwargs)
 
     if model_name == "proposed_phn":
-        # PHN = Parallel Hybrid Network: the existing classical
-        # architecture (DCNN/FA + BiLSTM/TA -> SGF -> MLPHead) run in
-        # parallel with the compact VQC branch, combined via the
-        # softmax-constrained Learned Scalar Output Fusion. All other
-        # ablation flags keep their defaults (True), since PHN extends
-        # the full "proposed" architecture, not an ablated variant.
         return ProposedModel(use_quantum_branch=True, **kwargs)
+
+    if model_name == "phn":
+        return PHNModel(**kwargs)
 
     if model_name == "cnn":
         return CNN(**kwargs)
@@ -155,6 +153,7 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "proposed_no_fa_no_ta_no_fusion",
         "proposed_hpo",
         "proposed_phn",
+        "phn",
         "cnn",
         "lstm",
         "cnn_lstm",
