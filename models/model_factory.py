@@ -127,7 +127,7 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         hpo_kwargs.update(kwargs)
         return ProposedModel(**hpo_kwargs)
 
-    if model_name == "proposed_phn":
+    if model_name in {"proposed_phn", "proposed_phn_5q"}:
         return ProposedModel(use_quantum_branch=True, **kwargs)
 
     if model_name == "phn":
@@ -153,6 +153,7 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "proposed_no_fa_no_ta_no_fusion",
         "proposed_hpo",
         "proposed_phn",
+        "proposed_phn_5q",
         "phn",
         "cnn",
         "lstm",
