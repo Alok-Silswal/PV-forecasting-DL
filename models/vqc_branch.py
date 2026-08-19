@@ -18,7 +18,7 @@ Data flow (see models/proposed_model.py for how this is wired in):
          (B, 128)              <- may be on CUDA (classical backbone device)
             │
             ▼
-      Linear(128, 2)           <- trainable classical->quantum interface
+      Linear(128, num_qubits)  <- trainable classical->quantum interface
             │
             ▼
       bounded angle encoding   <- tanh * pi, for numerical stability
@@ -27,11 +27,12 @@ Data flow (see models/proposed_model.py for how this is wired in):
       [ GPU -> CPU transfer ]  <- see "Device handling" below
             │
             ▼
-      2-qubit VQC, depth = 2   <- RY + RZ variational layers, CNOT entangler
+    num_qubits-qubit VQC,      <- RY + RZ variational layers,
+    depth = 2                     nearest-neighbour CNOT entangler
             │  (executes entirely on CPU; default.qubit has no CUDA path)
             ▼
-   expectation values (<=3)    <- <Z0>, <Z1>, <Z0 Z1>
-            │
+   expectation values (=3)    <- <Z0>, <Z1>, <Z0 Z1> (always wires 0,1;
+            │                     see "Qubit-count generalization" below)
             ▼
       [ CPU -> GPU transfer ]  <- back to the caller's original device
             │
@@ -50,6 +51,32 @@ Configuration
   ``"backprop"`` requires ``simulator="default.qubit"``.
 * Both are noiseless simulators with no hardware assumptions; there is
   no quantum hardware involved anywhere in this project.
+
+Qubit-count generalization (2 <= num_qubits <= 10)
+----------------------------------------------------
+This branch was originally validated only for a fixed 2-qubit circuit.
+It has been generalized to support ``2 <= num_qubits <= 10`` as a
+controlled experimental variable, while leaving every other design
+choice (depth, gate family, encoding, simulator, differentiation
+method, output semantics) untouched. Two things change with
+``num_qubits``:
+
+1. **Entanglement topology.** The original circuit applied a single
+   ``CNOT(0, 1)`` per variational layer. For ``num_qubits == 2`` this
+   is preserved EXACTLY, byte-for-byte, as before. For
+   ``num_qubits > 2``, this generalizes to the smallest natural
+   extension of "one entangling pass across the register per layer":
+   a nearest-neighbour chain, ``CNOT(0,1), CNOT(1,2), ..., CNOT(n-2,
+   n-1)``, applied once per layer after the RY/RZ rotations, in qubit
+   order. This keeps circuit depth unchanged (still one entangling
+   sub-layer per variational layer) and reduces exactly to the
+   original single-CNOT circuit at ``num_qubits=2``.
+
+2. **Nothing else.** The observables (below), the RY/RZ rotation
+   structure, the angle encoding, the projection layer, and the
+   device-pinning logic are all unchanged and already were
+   parameterized by ``num_qubits`` (projection width, weight tensor
+   shape, device wire count) or independent of it (observables).
 
 Device handling
 ----------------
@@ -108,11 +135,22 @@ Output dimension
 -----------------
 The 15-minute horizon requires 3 expectation values (<Z0>, <Z1>,
 <Z0 Z1>) with NO classical layer after the VQC — the circuit itself
-must produce the forecast. A 2-qubit circuit restricted to Pauli-Z-based
-observables can supply at most 3 independent expectation values, so the
-60-minute horizon (12 outputs) is not currently supported by this
-design; see the ``NotImplementedError`` raised in ``VQCBranch.__init__``
-for the specific conflict and why it is not silently resolved here.
+must produce the forecast. These three observables are always measured
+on wires 0 and 1 only, regardless of ``num_qubits``, so that the
+first-three-output semantics are IDENTICAL across every supported
+qubit count and reproduce the original 2-qubit circuit's output
+exactly when ``num_qubits=2`` (see "Qubit-count generalization"
+above). Additional qubits beyond wire 1 participate in the variational
+rotations and entanglement, expanding the circuit's representational
+capacity, but are not directly measured; this keeps ``output_dim``
+decoupled from ``num_qubits``, as required (the 15-minute horizon
+always needs exactly 3 outputs, independent of quantum capacity).
+A 2-qubit circuit restricted to Pauli-Z-based observables on wires 0/1
+can supply at most 3 independent expectation values from those two
+wires, so the 60-minute horizon (12 outputs) is not currently
+supported by this design; see the ``NotImplementedError`` raised in
+``VQCBranch.__init__`` for the specific conflict and why it is not
+silently resolved here.
 """
 
 from typing import List
@@ -122,14 +160,23 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-# Pauli-Z-based observables available from a 2-qubit circuit, in the
-# order the spec prefers them. Only the first `output_dim` are used.
+# Pauli-Z-based observables available from this circuit, in the order
+# the spec prefers them. Only the first `output_dim` are used. These
+# are ALWAYS defined on wires 0 and 1 only, regardless of `num_qubits`,
+# so that output semantics stay identical across every supported qubit
+# count (see "Output dimension" in the module docstring).
 _MAX_SUPPORTED_OUTPUT_DIM = 3
 
 # Simulators this module has been validated against. Both are
 # noiseless, analytic statevector simulators; no hardware-specific
 # backend is supported.
 _SUPPORTED_SIMULATORS = ("default.qubit", "lightning.qubit")
+
+# Supported qubit-count range for the PHN qubit-scaling experiment.
+# num_qubits=2 remains the validated, default configuration; 3-10 are
+# the experimental range being benchmarked (see smoke_test_qubits.py).
+_MIN_SUPPORTED_QUBITS = 2
+_MAX_SUPPORTED_QUBITS = 10
 
 
 def _build_qnode(
@@ -145,13 +192,13 @@ def _build_qnode(
     Parameters
     ----------
     num_qubits : int
-        Number of qubits (fixed at 2 for the initial implementation).
+        Number of qubits, ``2 <= num_qubits <= 10``.
     depth : int
-        Number of variational (RY + RZ + CNOT) layers (fixed at 2).
+        Number of variational (RY + RZ + entangler) layers (fixed at 2).
     output_dim : int
         Number of Pauli-Z-based expectation values to return. Must be
-        <= 3 for a 2-qubit circuit under this design (see module
-        docstring).
+        <= 3 (see module docstring); these are always measured on
+        wires 0 and 1, independent of ``num_qubits``.
     diff_method : str
         PennyLane differentiation method, e.g. "backprop" or "adjoint".
     simulator : str
@@ -175,6 +222,11 @@ def _build_qnode(
 
     device = qml.device(simulator, wires=num_qubits)
 
+    # Observables are always defined on wires 0/1 only, regardless of
+    # num_qubits, so that output semantics are identical across every
+    # supported qubit count and exactly reproduce the original 2-qubit
+    # circuit's outputs when num_qubits=2. See module docstring,
+    # "Output dimension".
     observables = [
         qml.PauliZ(0),
         qml.PauliZ(1),
@@ -186,20 +238,34 @@ def _build_qnode(
         # ---- Angle encoding (one rotation per qubit) ----
         qml.AngleEmbedding(inputs, wires=range(num_qubits), rotation="Y")
 
-        # ---- Variational layers: RY + RZ per qubit, CNOT entanglement ----
+        # ---- Variational layers: RY + RZ per qubit, entangler ----
         #
-        # For exactly 2 qubits, a "ring of CNOTs" (CNOT(q, (q+1) % n) for
-        # every qubit q) degenerates into TWO distinct gates -- CNOT(0,1)
-        # and CNOT(1,0) -- which are not equivalent and not redundant.
-        # That would silently double the entangling-gate count per layer
-        # versus this design's single-CNOT-per-layer depth-2 circuit.
-        # Entanglement here is therefore a single CNOT(0, 1) per layer.
+        # Entanglement topology:
+        #
+        # For num_qubits == 2, this is a single CNOT(0, 1) per layer,
+        # IDENTICAL to the original fixed 2-qubit circuit (a ring of
+        # CNOTs over 2 qubits would degenerate into the two distinct,
+        # non-redundant gates CNOT(0,1) and CNOT(1,0), which is why the
+        # original circuit used a single CNOT rather than a ring; that
+        # reasoning is preserved here by using a nearest-neighbour
+        # CHAIN, not a ring, for num_qubits > 2 as well).
+        #
+        # For num_qubits > 2, this extends to the smallest natural
+        # generalization of "one entangling pass across the register
+        # per layer": a nearest-neighbour chain,
+        #     CNOT(0,1), CNOT(1,2), ..., CNOT(n-2, n-1),
+        # applied once per layer, in qubit order, after the RY/RZ
+        # rotations. Circuit depth (number of variational layers) is
+        # unchanged; only the number of entangling gates within each
+        # layer's entangling sub-step grows with num_qubits, which is
+        # unavoidable for any topology that connects a larger register.
         for layer in range(depth):
             for qubit in range(num_qubits):
                 qml.RY(weights[layer, qubit, 0], wires=qubit)
                 qml.RZ(weights[layer, qubit, 1], wires=qubit)
 
-            qml.CNOT(wires=[0, 1])
+            for qubit in range(num_qubits - 1):
+                qml.CNOT(wires=[qubit, qubit + 1])
 
         return [qml.expval(observable) for observable in observables]
 
@@ -208,7 +274,7 @@ def _build_qnode(
 
 class VQCBranch(nn.Module):
     """
-    Compact 2-qubit, depth-2 variational quantum prediction branch.
+    Compact, depth-2 variational quantum prediction branch.
 
     Consumes the pooled (temporal-mean) SGF representation and produces
     a small quantum forecast, entirely independent of and parallel to
@@ -222,11 +288,14 @@ class VQCBranch(nn.Module):
         i.e. 128 by default).
     output_dim : int
         Number of forecast steps this branch must produce. Must be
-        <= 3 for the current 2-qubit design (see module docstring).
+        <= 3 (see module docstring), independent of ``num_qubits``.
     num_qubits : int, default 2
-        Number of qubits in the VQC. Fixed at 2 per the research spec;
-        exposed as a constructor argument only for configurability, not
-        as an invitation to scale it up without cause.
+        Number of qubits in the VQC, ``2 <= num_qubits <= 10``. The
+        validated default remains 2; 3-10 are supported as an explicit
+        experimental range for studying quantum-capacity scaling (see
+        module docstring, "Qubit-count generalization"). Exposed as a
+        constructor argument for exactly this controlled experiment,
+        not as a general invitation to scale it further.
     depth : int, default 2
         Number of variational layers. Fixed at 2 per the research spec.
     simulator : str, default "default.qubit"
@@ -242,13 +311,11 @@ class VQCBranch(nn.Module):
     Raises
     ------
     ValueError
-        If ``output_dim`` exceeds what a 2-qubit, Pauli-Z-only
-        measurement scheme can support (3), if ``num_qubits`` is not 2
-        (the only qubit count validated by this design; see module
-        docstring regarding the 60-minute horizon conflict), if
-        ``simulator`` is not one of the supported simulators, or if
-        ``diff_method="backprop"`` is requested with a simulator other
-        than ``"default.qubit"``.
+        If ``output_dim`` exceeds what the Pauli-Z-only measurement
+        scheme on wires 0/1 can support (3), if ``num_qubits`` is
+        outside ``[2, 10]``, if ``simulator`` is not one of the
+        supported simulators, or if ``diff_method="backprop"`` is
+        requested with a simulator other than ``"default.qubit"``.
     """
 
     def __init__(
@@ -262,28 +329,32 @@ class VQCBranch(nn.Module):
     ) -> None:
         super().__init__()
 
-        if num_qubits != 2:
+        if not (_MIN_SUPPORTED_QUBITS <= num_qubits <= _MAX_SUPPORTED_QUBITS):
             raise ValueError(
-                "VQCBranch is validated only for num_qubits=2, per the "
-                "research spec's explicit qubit-count restriction. "
-                f"Got num_qubits={num_qubits}."
+                f"VQCBranch supports {_MIN_SUPPORTED_QUBITS} <= "
+                f"num_qubits <= {_MAX_SUPPORTED_QUBITS} (the validated "
+                f"default is num_qubits=2; 3-10 are the explicit "
+                f"experimental range for the quantum-capacity-scaling "
+                f"study — see module docstring). Got "
+                f"num_qubits={num_qubits}."
             )
 
         if output_dim > _MAX_SUPPORTED_OUTPUT_DIM:
             raise NotImplementedError(
-                f"VQCBranch was asked for output_dim={output_dim}, but a "
-                f"{num_qubits}-qubit circuit restricted to Pauli-Z-based "
-                f"observables ({{<Z0>, <Z1>, <Z0 Z1>}}) can supply at most "
+                f"VQCBranch was asked for output_dim={output_dim}, but "
+                f"the Pauli-Z-based observable scheme used here "
+                f"({{<Z0>, <Z1>, <Z0 Z1>}}, always measured on wires 0/1 "
+                f"regardless of num_qubits) can supply at most "
                 f"{_MAX_SUPPORTED_OUTPUT_DIM} expectation values without "
-                "increasing qubit count or circuit depth. This is a "
-                "genuine architectural conflict for the 60-minute "
+                "changing the measurement scheme or circuit depth. This "
+                "is a genuine architectural conflict for the 60-minute "
                 "(12-output) horizon under the current spec, which "
                 "forbids both (a) a classical Linear layer after the VQC "
-                "and (b) scaling up the circuit without an explicit "
-                "experimental reason. Resolving this requires an "
-                "explicit research decision (e.g. additional qubits/"
-                "observables, or a different measurement scheme) and is "
-                "intentionally NOT silently resolved here."
+                "and (b) increasing output count merely because "
+                "num_qubits increased. Resolving this requires an "
+                "explicit research decision (e.g. a different "
+                "measurement scheme) and is intentionally NOT silently "
+                "resolved here."
             )
 
         if simulator not in _SUPPORTED_SIMULATORS:
@@ -314,6 +385,7 @@ class VQCBranch(nn.Module):
         # network — exactly as specified. This layer is allowed to
         # move to CUDA along with the rest of the classical model; the
         # CPU boundary is enforced later, only around the QNode call.
+        # Already parameterized by num_qubits; unchanged.
         # ------------------------------------------------------------
         self.projection = nn.Linear(
             in_features=input_dim,
@@ -325,7 +397,8 @@ class VQCBranch(nn.Module):
         # ------------------------------------------------------------
         # Variational parameters: (depth, num_qubits, 2) for RY, RZ.
         # Small random initialization is standard for VQCs to avoid
-        # barren-plateau-like flat starting regions.
+        # barren-plateau-like flat starting regions. Already
+        # parameterized by num_qubits; unchanged.
         #
         # NOTE on device: this nn.Parameter is registered on the module
         # in the normal way (so it appears in .parameters()/state_dict
