@@ -278,7 +278,7 @@ MLP_DROPOUT_RATE = 0.20    # Fixed architecture default (not tuned by HPO)
 # per the research spec and should not be changed without an explicit
 # experimental reason.
 
-VQC_NUM_QUBITS = 2                 # Fixed: 2-qubit circuit
+VQC_NUM_QUBITS = 5                 # Fixed: 2-qubit circuit
 
 VQC_DEPTH = 2                      # Fixed: 2 variational layers
 
