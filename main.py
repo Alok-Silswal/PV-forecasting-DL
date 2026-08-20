@@ -45,6 +45,17 @@ def _parse_args() -> argparse.Namespace:
         description="Train a PV power forecasting model."
     )
     parser.add_argument(
+        "model_positional",
+        type=str,
+        nargs="?",
+        default=None,
+        help=(
+            "Name of the model to train, given positionally (e.g. "
+            "'python main.py proposed_phn --horizon 15 --run1'). "
+            "Equivalent to --model."
+        ),
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default=None,
@@ -69,7 +80,72 @@ def _parse_args() -> argparse.Namespace:
             "config.ACTIVE_HORIZON for this run only)."
         ),
     )
+    parser.add_argument(
+        "--run1",
+        action="store_true",
+        help="Run only run 1 (uses the existing run-1 seed and paths).",
+    )
+    parser.add_argument(
+        "--run2",
+        action="store_true",
+        help="Run only run 2 (uses the existing run-2 seed and paths).",
+    )
+    parser.add_argument(
+        "--run3",
+        action="store_true",
+        help="Run only run 3 (uses the existing run-3 seed and paths).",
+    )
+    parser.add_argument(
+        "--run4",
+        action="store_true",
+        help="Run only run 4 (uses the existing run-4 seed and paths).",
+    )
+    parser.add_argument(
+        "--run5",
+        action="store_true",
+        help="Run only run 5 (uses the existing run-5 seed and paths).",
+    )
     return parser.parse_args()
+
+
+def _resolve_selected_run(args: argparse.Namespace) -> int:
+    """
+    Determine which single run number, if any, was selected via
+    --run1 .. --run5.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments.
+
+    Returns
+    -------
+    int or None
+        The selected run number in [1, 5], or ``None`` if no run flag
+        was supplied.
+
+    Raises
+    ------
+    ValueError
+        If more than one run flag is supplied simultaneously.
+    """
+
+    run_flags = {
+        1: args.run1,
+        2: args.run2,
+        3: args.run3,
+        4: args.run4,
+        5: args.run5,
+    }
+    selected = [run_number for run_number, is_set in run_flags.items() if is_set]
+
+    if len(selected) > 1:
+        raise ValueError(
+            "At most one of --run1, --run2, --run3, --run4, --run5 may "
+            "be supplied at a time."
+        )
+
+    return selected[0] if selected else None
 
 
 def _apply_runtime_overrides(model_name: str, horizon: str, run_number: int) -> None:
@@ -423,21 +499,32 @@ def _compute_average_metrics() -> None:
 def main() -> None:
     """
     Assemble the experiment and run training/evaluation across all
-    configured runs, then compute averaged metrics.
+    configured runs (or a single selected run), then compute averaged
+    metrics.
 
-    For each run in [1, config.NUM_RUNS]: rebuilds all run-scoped
-    config paths, creates required folders, and trains + evaluates
-    unless that run has already completed (history.json and
-    evaluation_metrics.json both already exist). After all runs,
+    If --run1 .. --run5 is supplied, only that run number is executed.
+    Otherwise, for each run in [1, config.NUM_RUNS]: rebuilds all
+    run-scoped config paths, creates required folders, and trains +
+    evaluates unless that run has already completed (history.json and
+    evaluation_metrics.json both already exist). After the loop,
     aggregates metrics into config.AVERAGE_EVALUATION_DIR.
     """
 
     args = _parse_args()
 
-    model_name = args.model if args.model is not None else config.MODEL_NAME
+    model_name = (
+        args.model
+        if args.model is not None
+        else args.model_positional
+        if args.model_positional is not None
+        else config.MODEL_NAME
+    )
     horizon = args.horizon if args.horizon is not None else config.ACTIVE_HORIZON
 
-    for run_number in range(1, config.NUM_RUNS + 1):
+    selected_run = _resolve_selected_run(args)
+    run_numbers = [selected_run] if selected_run is not None else range(1, config.NUM_RUNS + 1)
+
+    for run_number in run_numbers:
         _apply_runtime_overrides(model_name, horizon, run_number)
 
         if _is_run_complete():
