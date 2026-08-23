@@ -45,7 +45,7 @@ def _load_proposed_hpo_kwargs() -> dict:
     FileNotFoundError
         If ``best_hpo.json`` does not exist for the active horizon.
         Run ``python run_hpo.py --optimizer ...`` for each optimizer,
-        then ``python run_hpo.py --finalize``, before selecting
+        then ``python run_hpo.py --finalize`` before selecting
         ``proposed_hpo``.
     KeyError
         If ``best_hpo.json`` does not contain a
@@ -127,7 +127,15 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         hpo_kwargs.update(kwargs)
         return ProposedModel(**hpo_kwargs)
 
-    if model_name in {"proposed_phn", "proposed_phn_5q", "proposed_phn_10q"}:
+    if model_name in {
+        "proposed_phn",
+        "proposed_phn_5q",
+        "proposed_phn_6q",
+        "proposed_phn_7q",
+        "proposed_phn_8q",
+        "proposed_phn_9q",
+        "proposed_phn_10q",
+    }:
         return ProposedModel(use_quantum_branch=True, **kwargs)
 
     if model_name == "phn":
@@ -154,6 +162,10 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "proposed_hpo",
         "proposed_phn",
         "proposed_phn_5q",
+        "proposed_phn_6q",
+        "proposed_phn_7q",
+        "proposed_phn_8q",
+        "proposed_phn_9q",
         "proposed_phn_10q",
         "phn",
         "cnn",
