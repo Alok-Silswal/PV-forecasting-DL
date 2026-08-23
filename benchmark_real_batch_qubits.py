@@ -150,20 +150,41 @@ import torch
 # entry point main.py uses -- never a hand-built model.
 # ---------------------------------------------------------------------------
 
-DEFAULT_QUBITS = [5, 10]
+DEFAULT_QUBITS = [5, 6, 7, 8, 9, 10]
 REAL_BATCH_SIZE = 256
 
 DEFAULT_WARMUP_ITERS = 3
 DEFAULT_TIMED_ITERS = 10
+
+# Reference qubit count for the relative-slowdown table (print_slowdown_analysis).
+# All step-time ratios are computed as step_time(q) / step_time(REFERENCE_QUBITS).
+REFERENCE_QUBITS = 5
 
 # Maps a benchmarked qubit count to the model-name alias already
 # registered in models/model_factory.py. This script does not invent
 # new aliases; if a requested qubit count has no corresponding alias
 # in the factory, the run fails loudly with that exact reason rather
 # than silently falling back to constructing ProposedModel directly.
+#
+# IMPORTANT: as of the last model_factory.py this benchmark's author
+# actually inspected, only "proposed_phn", "proposed_phn_5q", and
+# "proposed_phn_10q" were registered aliases -- "proposed_phn_6q"
+# through "proposed_phn_9q" were NOT present. This mapping lists all
+# six requested aliases below because the aliases may have since been
+# added to model_factory.py; if any of 6/7/8/9 are still missing at
+# run time, get_model() will raise ValueError("Unsupported model ...")
+# from inside the subprocess for that qubit count ONLY, which this
+# script surfaces as FAIL + failure_reason for that configuration and
+# then continues the sweep -- it does NOT silently substitute a
+# different qubit count or re-benchmark an already-covered
+# configuration under a new label.
 _QUBITS_TO_MODEL_ALIAS = {
     2: "proposed_phn",       # baseline alias; also matches proposed_phn_2q semantics
     5: "proposed_phn_5q",
+    6: "proposed_phn_6q",
+    7: "proposed_phn_7q",
+    8: "proposed_phn_8q",
+    9: "proposed_phn_9q",
     10: "proposed_phn_10q",
 }
 
@@ -603,50 +624,71 @@ def print_status_and_detail_table(results: list[RealBatchBenchmarkResult]) -> No
 
 
 def print_slowdown_analysis(results: list[RealBatchBenchmarkResult]) -> None:
+    """
+    Reports step-time and throughput ratios for every PASSed qubit
+    configuration relative to REFERENCE_QUBITS (5q), from measured
+    complete-step wall-clock time only -- never estimated or
+    extrapolated from a different batch size.
+    """
     by_qubits = {r.num_qubits: r for r in results if r.status == "PASS"}
 
     print()
     print("=" * 88)
     print("MEASURED SLOWDOWN (from complete-step wall-clock time, NOT estimated)")
+    print(f"Reference configuration: {REFERENCE_QUBITS}q")
     print("=" * 88)
 
-    if 5 not in by_qubits or 10 not in by_qubits:
+    if REFERENCE_QUBITS not in by_qubits:
         print(
-            "Cannot compute the 10q/5q slowdown factor: both the 5-qubit "
-            "and 10-qubit runs must have PASSed. Current PASS set: "
+            f"Cannot compute relative slowdown: the {REFERENCE_QUBITS}-qubit "
+            f"reference run did not PASS. Current PASS set: "
             f"{sorted(by_qubits.keys())}."
         )
         return
 
-    r5 = by_qubits[5]
-    r10 = by_qubits[10]
+    r_ref = by_qubits[REFERENCE_QUBITS]
 
-    slowdown = r10.full_step_ms_mean / r5.full_step_ms_mean
-    it_s_5 = r5.iterations_per_sec
-    it_s_10 = r10.iterations_per_sec
-
-    print(f"5q  : {r5.full_step_ms_mean:.2f} ms/step  ({it_s_5:.2f} it/s)")
-    print(f"10q : {r10.full_step_ms_mean:.2f} ms/step  ({it_s_10:.2f} it/s)")
-    print(f"slowdown (10q step-time / 5q step-time) = {slowdown:.3f}x")
-    print()
     print(
-        "For reference, the previously observed REAL TRAINING numbers were "
-        "approximately 5q ~18-21 it/s and 10q ~2.73 it/s "
-        f"(ratio ~{18/2.73:.2f}x to ~{21/2.73:.2f}x, using the reported range)."
+        f"{'Qubits':>6} | {'Step ms':>10} | {'Iter/s':>8} | "
+        f"{'Slowdown vs ' + str(REFERENCE_QUBITS) + 'q':>16} | "
+        f"{'Throughput vs ' + str(REFERENCE_QUBITS) + 'q':>18}"
     )
-    print(
-        "This script reports the measured numbers above; it does not "
-        "itself decide whether they confirm, contradict, or fall outside "
-        "that previously observed range -- compare them directly."
-    )
+    print("-" * 72)
+    for nq in sorted(by_qubits.keys()):
+        r = by_qubits[nq]
+        slowdown = r.full_step_ms_mean / r_ref.full_step_ms_mean
+        throughput_ratio = r.iterations_per_sec / r_ref.iterations_per_sec
+        marker = "  <- reference" if nq == REFERENCE_QUBITS else ""
+        print(
+            f"{nq:>6} | {r.full_step_ms_mean:>10.2f} | "
+            f"{r.iterations_per_sec:>8.2f} | {slowdown:>15.3f}x | "
+            f"{throughput_ratio:>17.3f}x{marker}"
+        )
 
-    if 2 in by_qubits:
-        r2 = by_qubits[2]
+    if 10 in by_qubits:
+        slowdown_10_vs_5 = by_qubits[10].full_step_ms_mean / r_ref.full_step_ms_mean
+        print()
+        print(f"10q/5q slowdown = {slowdown_10_vs_5:.3f}x")
+        print(
+            "For reference, the previously observed REAL TRAINING numbers were "
+            "approximately 5q ~18-21 it/s and 10q ~2.73 it/s "
+            f"(ratio ~{18/2.73:.2f}x to ~{21/2.73:.2f}x, using the reported range)."
+        )
+        print(
+            "This script reports the measured numbers above; it does not "
+            "itself decide whether they confirm, contradict, or fall outside "
+            "that previously observed range -- compare them directly."
+        )
+
+    missing = [q for q in DEFAULT_QUBITS if q not in by_qubits]
+    if missing:
         print()
         print(
-            f"2q  : {r2.full_step_ms_mean:.2f} ms/step  "
-            f"({r2.iterations_per_sec:.2f} it/s)  "
-            f"[10q/2q slowdown = {r10.full_step_ms_mean / r2.full_step_ms_mean:.3f}x]"
+            f"NOTE: the following requested qubit counts did NOT produce a "
+            f"PASS result and are excluded from the ratio table above: "
+            f"{missing}. See the STATUS / DETAIL TABLE for each one's "
+            f"failure_reason (e.g. a missing model_factory.py alias, an "
+            f"OOM, or a construction error)."
         )
 
 
