@@ -226,7 +226,7 @@ MLP_DROPOUT_RATE = 0.20    # Fixed architecture default (not tuned by HPO)
 # PHN Quantum Branch (VQC)
 # =============================================================================
 
-VQC_NUM_QUBITS = 10                # Fixed: 10-qubit circuit
+VQC_NUM_QUBITS = 6                # Fixed: 10-qubit circuit
 
 VQC_DEPTH = 2                      # Fixed: 2 variational layers
 
