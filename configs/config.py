@@ -28,30 +28,12 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 EVALUATION_DIR = PROJECT_ROOT / "evaluation"
 RESULTS_DIR = PROJECT_ROOT / "results"
 
-# Output directory for the cross-model statistical analysis pipeline
-# (analysis/run_statistical_analysis.py). Kept separate from
-# EVALUATION_DIR: that directory is the *input* the loader scans
-# (evaluation/<model>/<horizon>/run_*/results/evaluation_metrics.json),
-# and is per-model/per-horizon, whereas this directory holds the
-# cross-model summary tables (CSV/XLSX) produced *from* that data.
-# Writing analysis outputs into EVALUATION_DIR would risk a stray
-# output file being picked up as model/horizon data on a future
-# loader run, since load_metrics.py discovers models/horizons by
-# scanning directory entries rather than an explicit allowlist.
 STATISTICAL_ANALYSIS_DIR = PROJECT_ROOT / "analysis" / "results"
 
 
 # =============================================================================
 # Active Forecast Horizon
 # =============================================================================
-# Selects which preprocessed artifact pair main.py loads: "15" or "60",
-# corresponding to TRAIN_15_FILE/VAL_15_FILE or TRAIN_60_FILE/VAL_60_FILE.
-#
-# This is also the single source of truth for the horizon segment used
-# in every experiment/evaluation directory below. IS_KAGGLE has no
-# bearing on this and must never be used to construct experiment paths;
-# IS_KAGGLE is reserved exclusively for dataset paths (see the Dataset
-# section further below).
 
 ACTIVE_HORIZON = "15"
 
@@ -60,12 +42,8 @@ ACTIVE_HORIZON = "15"
 # Model Configuration
 # =============================================================================
 
-MODEL_NAME = "proposed_phn_5q"
+MODEL_NAME = "proposed_phn_10q"
 
-# Directory hierarchy is Model -> Forecast Horizon -> Artifacts, so that
-# artifacts from different forecast horizons (e.g. 15-minute vs.
-# 60-minute training) never overwrite one another. The horizon segment
-# is derived exclusively from ACTIVE_HORIZON above.
 HORIZON_DIR_NAME = f"horizon_{ACTIVE_HORIZON}"
 
 MODEL_EXPERIMENT_DIR = EXPERIMENTS_DIR / MODEL_NAME / HORIZON_DIR_NAME
@@ -76,17 +54,6 @@ MODEL_EVALUATION_DIR = EVALUATION_DIR / MODEL_NAME / HORIZON_DIR_NAME
 # =============================================================================
 # Multi-Run Experiment Management
 # =============================================================================
-# NUM_RUNS controls how many repeated runs are averaged for a given
-# model/horizon combination (e.g. for reporting mean +/- std across
-# seeds). RUN_NUMBER selects which individual run is currently active;
-# it must be in [1, NUM_RUNS]. RUN_NAME derives the per-run directory
-# segment from RUN_NUMBER and must never be set independently.
-#
-# Directory hierarchy becomes:
-#   experiments/<model>/horizon_<h>/run_<n>/       (per-run artifacts)
-#   experiments/<model>/horizon_<h>/average/       (aggregated across runs)
-#   evaluation/<model>/horizon_<h>/run_<n>/
-#   evaluation/<model>/horizon_<h>/average/
 
 NUM_RUNS = 5
 RUN_NUMBER = 1
@@ -98,9 +65,6 @@ RUN_EVALUATION_DIR = MODEL_EVALUATION_DIR / RUN_NAME
 AVERAGE_EXPERIMENT_DIR = MODEL_EXPERIMENT_DIR / "average"
 AVERAGE_EVALUATION_DIR = MODEL_EVALUATION_DIR / "average"
 
-# Full list of per-run directories across all NUM_RUNS, used by
-# aggregation utilities (e.g. computing mean/std across runs) so that
-# run-path construction never needs to be duplicated outside config.py.
 ALL_RUN_EXPERIMENT_DIRS = [
     MODEL_EXPERIMENT_DIR / f"run_{i}"
     for i in range(1, NUM_RUNS + 1)
@@ -120,8 +84,6 @@ if IS_KAGGLE:
     RAW_DATA_FILE = Path(
     "/kaggle/input/datasets/aloksilswal/combined-output-all-arrays-csv/Combined_Output_All_Arrays.csv"
 )
-
-    # Processed dataset generated inside the notebook
     PROCESSED_DATA_FILE = Path("/kaggle/working/Processed.csv")
 
 else:
@@ -203,11 +165,6 @@ EARLY_STOPPING_PATIENCE = 15
 # =============================================================================
 # HPO Training Parameters
 # =============================================================================
-# Dedicated, reduced training settings used only while evaluating
-# candidate configurations during hyperparameter optimization (see
-# hpo/objective.py). Kept separate from NUM_EPOCHS and
-# EARLY_STOPPING_PATIENCE above, which continue to govern final model
-# training and are unaffected by these settings.
 
 HPO_NUM_EPOCHS = 20
 
@@ -268,17 +225,8 @@ MLP_DROPOUT_RATE = 0.20    # Fixed architecture default (not tuned by HPO)
 # =============================================================================
 # PHN Quantum Branch (VQC)
 # =============================================================================
-# Settings for the compact quantum prediction branch used only by the
-# "proposed_phn" model (models.vqc_branch.VQCBranch). These have no
-# effect on "proposed" or any other existing model, since only
-# ProposedModel(use_quantum_branch=True) ever constructs a VQCBranch.
-#
-# Kept intentionally minimal: only the settings actually referenced by
-# VQCBranch are exposed here. Qubit count and circuit depth are fixed
-# per the research spec and should not be changed without an explicit
-# experimental reason.
 
-VQC_NUM_QUBITS = 5                 # Fixed: 5-qubit circuit
+VQC_NUM_QUBITS = 10                # Fixed: 10-qubit circuit
 
 VQC_DEPTH = 2                      # Fixed: 2 variational layers
 
@@ -324,7 +272,6 @@ BEST_CHECKPOINT_PATH = CHECKPOINT_DIR / "best_checkpoint.pt"
 # =============================================================================
 # Gradient Clipping
 # =============================================================================
-# Set to None to disable gradient clipping.
 
 GRADIENT_CLIP_VALUE = 1.0
 
