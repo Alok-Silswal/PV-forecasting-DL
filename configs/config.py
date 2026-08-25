@@ -81,9 +81,25 @@ ALL_RUN_EVALUATION_DIRS = [
 # =============================================================================
 
 if IS_KAGGLE:
-    RAW_DATA_FILE = Path(
-    "/kaggle/input/datasets/aloksilswal/combined-output-all-arrays-csv/Combined_Output_All_Arrays.csv"
-)
+    # Find the dataset automatically, regardless of which Kaggle account
+    # owns the attached dataset.
+    kaggle_dataset_name = "Combined_Output_All_Arrays.csv"
+
+    matches = list(Path("/kaggle/input").rglob(kaggle_dataset_name))
+
+    if not matches:
+        raise FileNotFoundError(
+            f"{kaggle_dataset_name} not found anywhere under /kaggle/input. "
+            "Please attach the dataset to this Kaggle notebook."
+        )
+
+    if len(matches) > 1:
+        raise RuntimeError(
+            f"Multiple copies of {kaggle_dataset_name} found:\n"
+            + "\n".join(str(p) for p in matches)
+        )
+
+    RAW_DATA_FILE = matches[0]
     PROCESSED_DATA_FILE = Path("/kaggle/working/Processed.csv")
 
 else:
