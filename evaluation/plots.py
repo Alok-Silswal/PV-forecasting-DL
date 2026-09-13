@@ -8,8 +8,7 @@ This module implements the ``EvaluationPlotter`` class, which consumes
 already inverse-transformed predictions and targets (as produced by
 ``evaluation.evaluator.Evaluator``) and generates publication-quality
 figures. It performs no inference, metric computation, checkpoint
-loading, dataset loading, or hyperparameter optimization; its only
-responsibility is visualization.
+loading, or dataset loading; its only responsibility is visualization.
 """
 
 from pathlib import Path

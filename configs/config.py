@@ -179,14 +179,6 @@ WEIGHT_DECAY = 1e-5
 EARLY_STOPPING_PATIENCE = 15
 
 # =============================================================================
-# HPO Training Parameters
-# =============================================================================
-
-HPO_NUM_EPOCHS = 20
-
-HPO_EARLY_STOPPING_PATIENCE = 5
-
-# =============================================================================
 # Reproducibility
 # =============================================================================
 
@@ -198,10 +190,10 @@ RANDOM_SEED = 42
 
 DCNN_NUM_CONV_LAYERS = 2          # Fixed
 
-DCNN_FILTERS = 64                 # Default (HPO may change)
-DCNN_KERNEL_SIZE = 3      # Fixed architecture default (not tuned by HPO)
-DCNN_DILATION_RATE = 2     # Fixed architecture default (not tuned by HPO)
-DCNN_DROPOUT_RATE = 0.20          # Default (HPO may change)
+DCNN_FILTERS = 64                 # Default architecture value
+DCNN_KERNEL_SIZE = 3      # Fixed architecture default
+DCNN_DILATION_RATE = 2     # Fixed architecture default
+DCNN_DROPOUT_RATE = 0.20          # Default architecture value
 
 DCNN_STRIDE = 1                   # Fixed
 DCNN_ACTIVATION = "relu"          # Fixed
@@ -214,8 +206,8 @@ DCNN_WEIGHT_INIT = "kaiming"      # Fixed
 
 BILSTM_NUM_LAYERS = 1             # Fixed
 
-BILSTM_HIDDEN_SIZE = 64           # Default (HPO may change)
-BILSTM_DROPOUT_RATE = 0.20        # Default (HPO may change)
+BILSTM_HIDDEN_SIZE = 64           # Default architecture value
+BILSTM_DROPOUT_RATE = 0.20        # Default architecture value
 
 BILSTM_BIDIRECTIONAL = True       # Fixed
 BILSTM_BATCH_FIRST = True         # Fixed
@@ -234,8 +226,8 @@ FEATURE_ATTENTION_REDUCTION = 8
 # MLP Head
 # =============================================================================
 
-MLP_HIDDEN_DIM = 64        # Fixed architecture default (not tuned by HPO)
-MLP_DROPOUT_RATE = 0.20    # Fixed architecture default (not tuned by HPO)
+MLP_HIDDEN_DIM = 64        # Fixed architecture default
+MLP_DROPOUT_RATE = 0.20    # Fixed architecture default
 
 
 # =============================================================================

@@ -6,13 +6,9 @@ training loop: forward/backward passes, validation, metric computation,
 learning-rate scheduling, gradient clipping, early stopping, checkpointing,
 and epoch-level logging.
 
-The trainer has no knowledge of the model architecture, the data
-preprocessing pipeline, or the hyperparameter-optimization strategy used to
-select its dependencies. All dependencies (model, data loaders, criterion,
-optimizer, scheduler, device, logger) are injected through the constructor,
-which keeps this module free to be reused unchanged by downstream
-optimization routines such as Bayesian Optimization, QS-BAT, or
-QUBO-inspired Simulated Annealing.
+The trainer has no knowledge of the model architecture or the data
+preprocessing pipeline. All dependencies (model, data loaders, criterion,
+optimizer, scheduler, device, logger) are injected through the constructor.
 """
 
 import logging
@@ -40,8 +36,7 @@ class Trainer:
 
     The trainer performs model training, validation, metric computation,
     early stopping, checkpointing, and checkpoint resumption. It does not
-    perform data preprocessing, plotting, test-set evaluation, or
-    hyperparameter optimization.
+    perform data preprocessing, plotting, or test-set evaluation.
 
     Parameters
     ----------
