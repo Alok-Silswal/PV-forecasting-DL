@@ -1,0 +1,122 @@
+[
+  {
+    "configuration_id": "config_001",
+    "DCNN_FILTERS": 32,
+    "BILSTM_HIDDEN_SIZE": 64,
+    "DCNN_DROPOUT_RATE": 0.1,
+    "BILSTM_DROPOUT_RATE": 0.1,
+    "LEARNING_RATE": 0.0003,
+    "WEIGHT_DECAY": 0.000001,
+    "MLP_DROPOUT_RATE": 0.2
+  },
+  {
+    "configuration_id": "config_002",
+    "DCNN_FILTERS": 32,
+    "BILSTM_HIDDEN_SIZE": 192,
+    "DCNN_DROPOUT_RATE": 0.3,
+    "BILSTM_DROPOUT_RATE": 0.1,
+    "LEARNING_RATE": 0.001,
+    "WEIGHT_DECAY": 0,
+    "MLP_DROPOUT_RATE": 0.3
+  },
+  {
+    "configuration_id": "config_003",
+    "DCNN_FILTERS": 32,
+    "BILSTM_HIDDEN_SIZE": 256,
+    "DCNN_DROPOUT_RATE": 0.1,
+    "BILSTM_DROPOUT_RATE": 0.0,
+    "LEARNING_RATE": 0.0001,
+    "WEIGHT_DECAY": 0.00001,
+    "MLP_DROPOUT_RATE": 0.3
+  },
+  {
+    "configuration_id": "config_004",
+    "DCNN_FILTERS": 64,
+    "BILSTM_HIDDEN_SIZE": 128,
+    "DCNN_DROPOUT_RATE": 0.5,
+    "BILSTM_DROPOUT_RATE": 0.0,
+    "LEARNING_RATE": 0.0005,
+    "WEIGHT_DECAY": 0,
+    "MLP_DROPOUT_RATE": 0.3
+  },
+  {
+    "configuration_id": "config_005",
+    "DCNN_FILTERS": 64,
+    "BILSTM_HIDDEN_SIZE": 256,
+    "DCNN_DROPOUT_RATE": 0.2,
+    "BILSTM_DROPOUT_RATE": 0.5,
+    "LEARNING_RATE": 0.0001,
+    "WEIGHT_DECAY": 0.0001,
+    "MLP_DROPOUT_RATE": 0.5
+  },
+  {
+    "configuration_id": "config_006",
+    "DCNN_FILTERS": 64,
+    "BILSTM_HIDDEN_SIZE": 64,
+    "DCNN_DROPOUT_RATE": 0.0,
+    "BILSTM_DROPOUT_RATE": 0.5,
+    "LEARNING_RATE": 0.0003,
+    "WEIGHT_DECAY": 0.000001,
+    "MLP_DROPOUT_RATE": 0.5
+  },
+  {
+    "configuration_id": "config_007",
+    "DCNN_FILTERS": 96,
+    "BILSTM_HIDDEN_SIZE": 192,
+    "DCNN_DROPOUT_RATE": 0.3,
+    "BILSTM_DROPOUT_RATE": 0.3,
+    "LEARNING_RATE": 0.001,
+    "WEIGHT_DECAY": 0.0001,
+    "MLP_DROPOUT_RATE": 0.0
+  },
+  {
+    "configuration_id": "config_008",
+    "DCNN_FILTERS": 96,
+    "BILSTM_HIDDEN_SIZE": 64,
+    "DCNN_DROPOUT_RATE": 0.1,
+    "BILSTM_DROPOUT_RATE": 0.3,
+    "LEARNING_RATE": 0.0003,
+    "WEIGHT_DECAY": 0.00001,
+    "MLP_DROPOUT_RATE": 0.0
+  },
+  {
+    "configuration_id": "config_009",
+    "DCNN_FILTERS": 96,
+    "BILSTM_HIDDEN_SIZE": 128,
+    "DCNN_DROPOUT_RATE": 0.5,
+    "BILSTM_DROPOUT_RATE": 0.3,
+    "LEARNING_RATE": 0.0005,
+    "WEIGHT_DECAY": 0,
+    "MLP_DROPOUT_RATE": 0.1
+  },
+  {
+    "configuration_id": "config_010",
+    "DCNN_FILTERS": 128,
+    "BILSTM_HIDDEN_SIZE": 256,
+    "DCNN_DROPOUT_RATE": 0.2,
+    "BILSTM_DROPOUT_RATE": 0.2,
+    "LEARNING_RATE": 0.0001,
+    "WEIGHT_DECAY": 0.00001,
+    "MLP_DROPOUT_RATE": 0.1
+  },
+  {
+    "configuration_id": "config_011",
+    "DCNN_FILTERS": 128,
+    "BILSTM_HIDDEN_SIZE": 128,
+    "DCNN_DROPOUT_RATE": 0.0,
+    "BILSTM_DROPOUT_RATE": 0.2,
+    "LEARNING_RATE": 0.0005,
+    "WEIGHT_DECAY": 0.000001,
+    "MLP_DROPOUT_RATE": 0.1
+  },
+  {
+    "configuration_id": "config_012",
+    "DCNN_FILTERS": 128,
+    "BILSTM_HIDDEN_SIZE": 192,
+    "DCNN_DROPOUT_RATE": 0.3,
+    "BILSTM_DROPOUT_RATE": 0.1,
+    "LEARNING_RATE": 0.001,
+    "WEIGHT_DECAY": 0.0001,
+    "MLP_DROPOUT_RATE": 0.2
+  }
+]
