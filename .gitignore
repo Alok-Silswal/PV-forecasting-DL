@@ -74,5 +74,10 @@ artifacts/feature_scaler.pkl
 artifacts/target_scaler.pkl
 artifacts/preprocessing_config.json
 
+# QUBO lag-selection preprocessing artifacts
+artifacts/qubo_lag_selection/*.pt
+artifacts/qubo_lag_selection/*.pkl
+artifacts/qubo_lag_selection/*.json
+
 ## Keep project artifacts, checkpoints, and evaluation outputs tracked in Git.
 ## Do not add ignore rules for history.json, training.log, *.pth, results, or processed datasets here.

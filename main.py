@@ -260,17 +260,53 @@ def _select_device() -> torch.device:
     return torch.device("cpu")
 
 
+
+# Model names that must be routed to the QUBO-preprocessed dataset
+# artifacts (artifacts/qubo_lag_selection/...) rather than the
+# horizon-keyed baseline artifacts. A set, not a single string, so any
+# future QUBO ablation variant can be added here without touching the
+# routing logic itself.
+_QUBO_MODEL_NAMES = {"proposed_qubo"}
+
+
+def _is_qubo_model(model_name: str) -> bool:
+    """
+    Determine whether ``model_name`` is a QUBO lag-selection model that
+    must be routed to the QUBO-specific dataset/scaler artifacts.
+
+    Parameters
+    ----------
+    model_name : str
+        Value of ``config.MODEL_NAME`` for the current run.
+
+    Returns
+    -------
+    bool
+        True if ``model_name`` (case-insensitive) is a registered QUBO
+        model name.
+    """
+
+    return model_name.lower() in _QUBO_MODEL_NAMES
+
+
 def _resolve_dataset_paths(horizon: str) -> Tuple[Path, Path]:
     """
     Resolve the train/validation artifact paths for the configured
-    forecast horizon.
+    forecast horizon and model.
+
+    For QUBO models (see ``_is_qubo_model``), this resolves to the
+    QUBO-preprocessed artifacts under ``artifacts/qubo_lag_selection/``
+    (``config.QUBO_TRAIN_{horizon}_FILE`` / ``config.QUBO_VAL_{horizon}_FILE``)
+    instead of the horizon-keyed baseline artifacts. Every other model
+    continues to resolve exactly as before, via
+    ``TRAIN_{horizon}_FILE`` / ``VAL_{horizon}_FILE``.
 
     Parameters
     ----------
     horizon : str
         Forecast horizon identifier, e.g. ``"15"`` or ``"60"``, matching
         the ``TRAIN_{horizon}_FILE`` / ``VAL_{horizon}_FILE`` constants in
-        ``configs.config``.
+        ``configs.config`` (or their ``QUBO_`` counterparts).
 
     Returns
     -------
@@ -280,18 +316,22 @@ def _resolve_dataset_paths(horizon: str) -> Tuple[Path, Path]:
     Raises
     ------
     ValueError
-        If no dataset constants exist for the given horizon.
+        If no dataset constants exist for the given horizon/model
+        combination.
     FileNotFoundError
         If the resolved artifact paths do not exist on disk.
     """
 
-    train_attr = f"TRAIN_{horizon}_FILE"
-    val_attr = f"VAL_{horizon}_FILE"
+    prefix = "QUBO_" if _is_qubo_model(config.MODEL_NAME) else ""
+
+    train_attr = f"{prefix}TRAIN_{horizon}_FILE"
+    val_attr = f"{prefix}VAL_{horizon}_FILE"
 
     if not hasattr(config, train_attr) or not hasattr(config, val_attr):
         raise ValueError(
-            f"Invalid forecast horizon '{horizon}'. No '{train_attr}' / "
-            f"'{val_attr}' constants are defined in configs/config.py."
+            f"Invalid forecast horizon '{horizon}' for model "
+            f"'{config.MODEL_NAME}'. No '{train_attr}' / '{val_attr}' "
+            f"constants are defined in configs/config.py."
         )
 
     train_path: Path = getattr(config, train_attr)

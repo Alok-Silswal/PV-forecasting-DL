@@ -56,7 +56,6 @@ from models.residual_bilstm import ResidualBiLSTM
 from models.temporal_attention import TemporalAttention
 from models.scalar_gated_fusion import ScalarGatedFusion
 from models.mlp_head import MLPHead
-from models.vqc_branch import VQCBranch
 from models.learned_scalar_output_fusion import LearnedScalarOutputFusion
 
 from torch import Tensor
@@ -165,6 +164,8 @@ class ProposedModel(nn.Module):
         # PHN quantum extension (only constructed when requested)
         # ------------------------------------------------------------
         if self.use_quantum_branch:
+            from models.vqc_branch import VQCBranch
+
             self.vqc_branch = VQCBranch(
                 input_dim=bilstm_hidden_size * 2,
                 output_dim=config.HORIZON_TO_OUTPUT_DIM[config.ACTIVE_HORIZON],
