@@ -104,7 +104,7 @@ if IS_KAGGLE:
 
 else:
     RAW_DATA_FILE = RAW_DATA_DIR / "Combined_Output_All_Arrays.csv"
-    PROCESSED_DATA_FILE = PROCESSED_DATA_DIR / "Processed.csv"
+    PROCESSED_DATA_FILE = PROCESSED_DATA_DIR / "DKASC_Preprocessed.csv"
 
 
 # =============================================================================
