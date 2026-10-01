@@ -1,0 +1,24 @@
+Stage 0: exploratory residual predictability
+
+Model       RMSE          MAE           R2            nRMSE
+baseline        7.744040      2.657860      0.986582      0.036734
+ridge           7.688820      2.471831      0.986773      0.036472
+mlp             7.654079      2.486451      0.986892      0.036307
+ridge improvements: {"rmse": {"delta": -0.0552196465841881, "delta_percent": -0.7130599368092553, "improvement": 0.0552196465841881, "improvement_percent": 0.7130599368092553}, "mae": {"delta": -0.18602875429437704, "delta_percent": -6.9991933337459855, "improvement": 0.18602875429437704, "improvement_percent": 6.9991933337459855}}
+ridge residual RMSE: 7.688820
+ridge consistency: {"aggregate_rmse_lower": true, "aggregate_mae_lower": true, "outputs_with_lower_rmse": 2, "periods_with_lower_rmse": 3}
+mlp improvements: {"rmse": {"delta": -0.08996110506991783, "delta_percent": -1.1616818263884865, "improvement": 0.08996110506991783, "improvement_percent": 1.1616818263884865}, "mae": {"delta": -0.17140861079118563, "delta_percent": -6.449121322921153, "improvement": 0.17140861079118563, "improvement_percent": 6.449121322921153}}
+mlp residual RMSE: 7.654079
+mlp consistency: {"aggregate_rmse_lower": true, "aggregate_mae_lower": true, "outputs_with_lower_rmse": 3, "periods_with_lower_rmse": 3}
+Ridge alpha: 0.1; MLP selected epoch: 17
+Partitions: {"train": {"samples": 95860, "first_sample_index": 0, "last_sample_index": 95859, "latent_shape": [95860, 128], "input_start": "2022-03-18T07:35:00.000000000", "last_input_end": "2023-03-03T13:55:00.000000000", "first_target": "2022-03-18T09:35:00.000000000", "last_target": "2023-03-03T14:10:00.000000000", "sha256": "3523a4ad619521d470067a7c0afed9080110348874e25af5645e63f5de9ea65b"}, "tuning": {"samples": 31927, "first_sample_index": 95886, "last_sample_index": 127812, "latent_shape": [31927, 128], "input_start": "2023-03-03T14:15:00.000000000", "last_input_end": "2023-06-28T07:35:00.000000000", "first_target": "2023-03-03T16:15:00.000000000", "last_target": "2023-06-28T07:50:00.000000000", "sha256": "fe848ff77891a53f98e4df78fb8badcc5f81f20cef0dd50654df4c112c74c620"}, "assessment": {"samples": 31928, "first_sample_index": 127839, "last_sample_index": 159766, "latent_shape": [31928, 128], "input_start": "2023-06-28T07:55:00.000000000", "last_input_end": "2023-10-19T18:20:00.000000000", "first_target": "2023-06-28T09:55:00.000000000", "last_target": "2023-10-19T18:35:00.000000000", "sha256": "d20008cc2dc439c106954618e0691e0cd512e9c79feb2c8b6382738ee09f86dc"}}
+Runtime: 45.37s; device: cpu; hardware: x86_64
+Per-output metrics: metrics.csv; chronological thirds: stage0_summary.json
+No automatic GO/NO-GO threshold. Review aggregate, all three outputs and chronological thirds.
+
+Warnings:
+Exploratory only: the historical validation period selected the backbone checkpoint.
+Historical timestamp gaps and pre-split interpolation are preserved; horizons are row based.
+No original test data is used for residual fitting, tuning, or assessment.
+Overlapping windows within blocks make samples statistically dependent.
+CPU subnormal flushing is enabled; previously checked against the historical checkpoint.

@@ -1,0 +1,43 @@
+{
+  "stage0_artifacts": "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1",
+  "stage0_evaluation": "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1",
+  "stage0_5_artifacts": "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5",
+  "stage0_5_evaluation": "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1/stage0_5",
+  "smoke_test": false,
+  "benchmark": false,
+  "subset_samples": 4096,
+  "epochs": 30,
+  "batch_size": 128,
+  "patience": 8,
+  "learning_rate": 0.001,
+  "seed": 42,
+  "cpu_threads": 1,
+  "device": "cpu",
+  "source_sha256": {
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/manifest.json": "8b7c45caa5bc8aef243125249c87410f1f7fd2cfa430ceb8a8485a6c7a6aa778",
+    "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1/stage0_summary.json": "deac747518910715583832ca6af7625b246fdacd6c555f08b047838109c67c24",
+    "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1/stage0_5/stage0_5_summary.json": "a9c2de77d3a08e0cf84963a37dc19d15b68ba8a04a59c64b8a0dbd5ebf2bbc5b",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/settings.json": "482776434be490380ccfdbbff4d740d271e8d1be4caa3abe52a138d8ab9aa031",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/bias.npy": "3ed58b98823dea69d0b907f36c4beb1a24f585b563064aa104ed7c956ef611a6",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/latent_scaler.pkl": "7a1af7194a181339a888cc12db438d7533f36d43e7619805df43b83b9517908d",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/centered_residual_scaler.pkl": "5d35778dad58d3549dd1a943e4f660ac32f72ef9217df8fdab8c562fc8d6f319",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/train.npz": "3523a4ad619521d470067a7c0afed9080110348874e25af5645e63f5de9ea65b",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/tuning.npz": "fe848ff77891a53f98e4df78fb8badcc5f81f20cef0dd50654df4c112c74c620"
+  },
+  "scaling": "Reused Stage-0.5 train-only latent and centered-residual scalers, verified against entire training partition",
+  "bias": [
+    0.4206202165383574,
+    0.28051004212807445,
+    0.27499252831092735
+  ],
+  "selected_epoch": 3,
+  "parameter_counts": {
+    "projection": 774,
+    "quantum": 24,
+    "readout": 21,
+    "total": 819
+  },
+  "backend": "default.qubit",
+  "differentiation": "backprop",
+  "shots": null
+}

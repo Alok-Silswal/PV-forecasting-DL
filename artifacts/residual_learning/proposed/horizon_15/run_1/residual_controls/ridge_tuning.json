@@ -1,0 +1,22 @@
+[
+  {
+    "alpha": 0.01,
+    "tuning_residual_rmse_original": 9.814708106595521
+  },
+  {
+    "alpha": 0.1,
+    "tuning_residual_rmse_original": 9.810782514056237
+  },
+  {
+    "alpha": 1.0,
+    "tuning_residual_rmse_original": 9.81575981707812
+  },
+  {
+    "alpha": 10.0,
+    "tuning_residual_rmse_original": 9.817795022116421
+  },
+  {
+    "alpha": 100.0,
+    "tuning_residual_rmse_original": 9.811708261865123
+  }
+]

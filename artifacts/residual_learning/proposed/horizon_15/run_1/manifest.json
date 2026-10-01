@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "source_processed_csv": "/kaggle/working/Processed.csv",
+  "processed_csv_sha256": "8a703203988b9e56e4bc61cbef86399925c34dfdffeffea88e7180b4cf91a84f",
+  "checkpoint": "experiments/proposed/horizon_15/run_1/checkpoints/best_checkpoint.pt",
+  "checkpoint_sha256": "313ed3d81aa24b9b016ee656c99d12fbf5217eae0850430e71a1b53c9a3e8b4b",
+  "checkpoint_epoch_zero_based": 33,
+  "run_number": 1,
+  "features": [
+    "Weather_Temperature_Celsius",
+    "Weather_Relative_Humidity",
+    "Global_Horizontal_Radiation",
+    "Diffuse_Horizontal_Radiation",
+    "Radiation_Global_Tilted",
+    "Radiation_Diffuse_Tilted",
+    "Active_Power"
+  ],
+  "target": "Active_Power",
+  "training_scaler_row_range": [
+    0,
+    745702
+  ],
+  "split_row_boundaries": {
+    "train": [
+      0,
+      745702
+    ],
+    "validation": [
+      745702,
+      905495
+    ],
+    "test": [
+      905495,
+      1065289
+    ]
+  },
+  "input_length": 24,
+  "output_length": 3,
+  "stride": 1,
+  "latent_extraction_module": "model.scalar_gated_fusion",
+  "latent_shape": [
+    128
+  ],
+  "pooling": "detached fusion output.mean(dim=1)",
+  "timestamp_mapping": {
+    "sample_index": "window start relative to historical validation rows",
+    "row_offsets": [
+      0,
+      23,
+      24,
+      25,
+      26
+    ]
+  },
+  "feature_scaler": {
+    "mean_": [
+      21.32121364199132,
+      35.759676042422385,
+      265.9116992264983,
+      53.46196089162243,
+      289.38831633289294,
+      56.879555140385484,
+      48.63436094414469
+    ],
+    "scale_": [
+      10.297735204766703,
+      23.07478645135192,
+      365.052901418772,
+      89.58229374716824,
+      386.703999394538,
+      215.69526431533706,
+      65.73854637864127
+    ],
+    "var_": [
+      106.04335034749154,
+      532.4457697754941,
+      133263.62083426368,
+      8024.987353003938,
+      149539.98314773088,
+      46524.44704806311,
+      4321.556479976769
+    ],
+    "n_samples_seen_": 745702.0
+  },
+  "target_scaler": {
+    "mean_": [
+      48.63436094414469
+    ],
+    "scale_": [
+      65.73854637864127
+    ],
+    "var_": [
+      4321.556479976769
+    ],
+    "n_samples_seen_": 745702.0
+  },
+  "partition_policy": "60/20/20 of validation window starts; discard first 26 starts of tuning and assessment",
+  "purged_start_ranges": [
+    [
+      95860,
+      95886
+    ],
+    [
+      127813,
+      127839
+    ]
+  ],
+  "partitions": {
+    "train": {
+      "samples": 95860,
+      "first_sample_index": 0,
+      "last_sample_index": 95859,
+      "latent_shape": [
+        95860,
+        128
+      ],
+      "input_start": "2022-03-18T07:35:00.000000000",
+      "last_input_end": "2023-03-03T13:55:00.000000000",
+      "first_target": "2022-03-18T09:35:00.000000000",
+      "last_target": "2023-03-03T14:10:00.000000000",
+      "sha256": "3523a4ad619521d470067a7c0afed9080110348874e25af5645e63f5de9ea65b"
+    },
+    "tuning": {
+      "samples": 31927,
+      "first_sample_index": 95886,
+      "last_sample_index": 127812,
+      "latent_shape": [
+        31927,
+        128
+      ],
+      "input_start": "2023-03-03T14:15:00.000000000",
+      "last_input_end": "2023-06-28T07:35:00.000000000",
+      "first_target": "2023-03-03T16:15:00.000000000",
+      "last_target": "2023-06-28T07:50:00.000000000",
+      "sha256": "fe848ff77891a53f98e4df78fb8badcc5f81f20cef0dd50654df4c112c74c620"
+    },
+    "assessment": {
+      "samples": 31928,
+      "first_sample_index": 127839,
+      "last_sample_index": 159766,
+      "latent_shape": [
+        31928,
+        128
+      ],
+      "input_start": "2023-06-28T07:55:00.000000000",
+      "last_input_end": "2023-10-19T18:20:00.000000000",
+      "first_target": "2023-06-28T09:55:00.000000000",
+      "last_target": "2023-10-19T18:35:00.000000000",
+      "sha256": "d20008cc2dc439c106954618e0691e0cd512e9c79feb2c8b6382738ee09f86dc"
+    }
+  },
+  "max_samples_per_partition": null,
+  "seed": 42,
+  "batch_size": 256,
+  "cpu_threads": 1,
+  "torch_version": "2.13.0+cu130",
+  "sklearn_version": "1.9.0",
+  "python_version": "3.12.13",
+  "cuda_available": false,
+  "device": "cpu",
+  "hardware": "x86_64",
+  "deterministic_algorithms": true,
+  "historical_reproduction_reference": {
+    "source": "previous full test provenance audit, not rerun during validation extraction",
+    "maximum_prediction_difference_original": 0.00087738037109375,
+    "prediction_difference_rmse_original": 4.419742796242756e-05
+  },
+  "creation_timestamp_utc": "2026-10-01T18:44:24.205565+00:00",
+  "runtime_seconds": 24.973372772999937,
+  "regression_checks": {
+    "hook_predictions_exact": true,
+    "pooled_latent_shape": [
+      8,
+      128
+    ],
+    "parameters_frozen": true,
+    "hook_removed": true
+  },
+  "warnings": [
+    "Exploratory only: the historical validation period selected the backbone checkpoint.",
+    "Historical timestamp gaps and pre-split interpolation are preserved; horizons are row based.",
+    "No original test data is used for residual fitting, tuning, or assessment.",
+    "Overlapping windows within blocks make samples statistically dependent.",
+    "CPU subnormal flushing is enabled; previously checked against the historical checkpoint."
+  ]
+}
