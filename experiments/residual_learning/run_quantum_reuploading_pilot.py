@@ -101,13 +101,12 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("Smoke verification needs at least three fitting samples.")
     source = args.stage0_artifacts.resolve()
     classical = args.stage0_5_artifacts.resolve()
-    first = args.quantum_pilot_artifacts.resolve()
     paths = {"manifest": source / "manifest.json",
              "stage0": args.stage0_evaluation.resolve() / "stage0_summary.json",
              "stage5": args.stage0_5_evaluation.resolve() / "stage0_5_summary.json",
              "quantum": args.quantum_pilot_evaluation.resolve() / "quantum_pilot_summary.json"}
-    required = [*paths.values(), classical / "bias.npy", first / "settings.json",
-                first / "latent_scaler.pkl", first / "centered_residual_scaler.pkl",
+    required = [*paths.values(), classical / "bias.npy",
+                classical / "latent_scaler.pkl", classical / "centered_residual_scaler.pkl",
                 *[source / f"{name}.npz" for name in ("train", "tuning", "assessment")]]
     for path in required:
         if not path.is_file():
@@ -131,7 +130,8 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("First pilot must use PennyLane 0.45.1, backprop and analytic expectations.")
     for name in ("manifest", "stage0", "stage5"):
         verify_snapshot(paths[name], quantum["source_sha256"])
-    verify_snapshot(classical / "bias.npy", quantum["source_sha256"])
+    for name in ("bias.npy", "latent_scaler.pkl", "centered_residual_scaler.pkl"):
+        verify_snapshot(classical / name, quantum["source_sha256"])
     metrics = {"baseline": stage0["assessment_metrics"]["baseline"],
                "bias_only": stage5["assessment_metrics"]["bias_only"],
                "stage0_ridge": stage0["assessment_metrics"]["ridge"],
@@ -159,7 +159,7 @@ def run(args: argparse.Namespace) -> None:
     np.testing.assert_allclose(bias, train_residual.mean(0), atol=1e-12, rtol=1e-12)
     np.testing.assert_array_equal(bias, stage5["learned_bias_original"])
     np.testing.assert_array_equal(bias, quantum["training_bias_original"])
-    scaler_bytes = {name: (first / f"{name}.pkl").read_bytes()
+    scaler_bytes = {name: (classical / f"{name}.pkl").read_bytes()
                     for name in ("latent_scaler", "centered_residual_scaler")}
     latent_scaler = pickle.loads(scaler_bytes["latent_scaler"])
     residual_scaler = pickle.loads(scaler_bytes["centered_residual_scaler"])
@@ -187,7 +187,7 @@ def run(args: argparse.Namespace) -> None:
                 "differentiation": "backprop", "shots": None, "pennylane_version": qml.__version__,
                 "encoding_applications": 2, "parameter_counts": model.parameter_counts(),
                 "selected_epoch": epoch, "bias": bias.tolist(), "partitions": manifest["partitions"],
-                "source_sha256": dict(source_hashes), "scaling": "Exact saved first-pilot scaler bytes, verified against training only",
+                "source_sha256": dict(source_hashes), "scaling": "Exact Stage-0.5 scaler bytes; SHA256 matches first-pilot snapshot; verified against training only",
                 "historical_discrepancy": HISTORICAL_NOTE, "smoke_test": args.smoke_test}
     for directory in (artifacts, evaluation):
         directory.mkdir(parents=True, exist_ok=False)
@@ -286,7 +286,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     for name, default in (("stage0-artifacts", artifacts), ("stage0-evaluation", evaluation),
                           ("stage0-5-artifacts", artifacts / "stage0_5"), ("stage0-5-evaluation", evaluation / "stage0_5"),
-                          ("quantum-pilot-artifacts", artifacts / "quantum_pilot"), ("quantum-pilot-evaluation", evaluation / "quantum_pilot")):
+                          ("quantum-pilot-evaluation", evaluation / "quantum_pilot")):
         parser.add_argument(f"--{name}", type=Path, default=default)
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--smoke-samples", type=int, default=32)
