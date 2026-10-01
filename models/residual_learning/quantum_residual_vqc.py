@@ -11,6 +11,7 @@ class QuantumResidualVQC(nn.Module):
 
     ``pi*tanh`` keeps encoding angles in (-pi, pi). Inputs are encoded once.
     Native parameter broadcasting executes one QNode per batch, not per sample.
+    This pilot runs entirely on CPU, including the default.qubit simulator.
     """
 
     def __init__(self) -> None:
@@ -26,6 +27,8 @@ class QuantumResidualVQC(nn.Module):
 
         @qml.qnode(device, interface="torch", diff_method="backprop")
         def circuit(angles: torch.Tensor, weights: torch.Tensor) -> list[torch.Tensor]:
+            if angles.device.type != "cpu" or weights.device.type != "cpu":
+                raise ValueError("This pilot's default.qubit QNode requires CPU inputs and quantum weights.")
             for wire in range(6):
                 qml.RY(angles[:, wire], wires=wire)
             for layer in range(2):
@@ -42,6 +45,8 @@ class QuantumResidualVQC(nn.Module):
         """Return six local expectations, preserving batch axis and autograd."""
         if latent.ndim != 2 or latent.shape[1] != 128 or not len(latent):
             raise ValueError("Quantum residual input must be nonempty [B,128].")
+        if latent.device.type != "cpu" or any(p.device.type != "cpu" for p in self.parameters()):
+            raise ValueError("This default.qubit pilot is CPU-only; keep the entire residual model and inputs on CPU.")
         angles = math.pi * torch.tanh(self.projection(latent))
         # PennyLane may promote simulator precision; match the classical readout.
         return torch.stack(self.circuit(angles, self.weights), dim=-1).to(latent.dtype)

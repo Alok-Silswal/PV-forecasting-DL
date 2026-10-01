@@ -164,9 +164,10 @@ def run(args: argparse.Namespace) -> None:
             raise FileExistsError(f"Refusing to overwrite quantum pilot outputs: {directory}")
     source_hashes = {str(path): sha256(path) for path in required}
     setup(args.seed, args.cpu_threads)
-    if args.device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("CUDA requested but unavailable; use --device cpu.")
-    device = torch.device("cuda" if args.device == "cuda" or (args.device == "auto" and torch.cuda.is_available()) else "cpu")
+    device_warning = "This pilot's default.qubit implementation is CPU-only; --device cuda falls back to CPU for the entire residual model."
+    if args.device == "cuda":
+        logging.warning(device_warning)
+    device = torch.device("cpu")
     train = load_partition(source, "train", manifest)
     tuning = load_partition(source, "tuning", manifest)
     bias = np.load(classical / "bias.npy", allow_pickle=False)
@@ -216,7 +217,7 @@ def run(args: argparse.Namespace) -> None:
     estimated_epoch = (mean_train * math.ceil(manifest["partitions"]["train"]["samples"] / args.batch_size) / train_batches
                        + mean_tune * math.ceil(manifest["partitions"]["tuning"]["samples"] / args.batch_size) / tune_batches)
     report = {"backend": "default.qubit", "interface": "torch", "differentiation": "backprop", "shots": None,
-              "device": str(device), "hardware": torch.cuda.get_device_name(device) if device.type == "cuda" else platform.processor(),
+              "device": str(device), "requested_device": args.device, "hardware": platform.processor(),
               "pennylane_version": qml.__version__, "torch_version": str(torch.__version__), "python_version": platform.python_version(),
               "configuration": vars(args) | {"stage0_artifacts": str(source), "stage0_evaluation": str(args.stage0_evaluation),
                                               "stage0_5_artifacts": str(classical), "stage0_5_evaluation": str(args.stage0_5_evaluation)},
@@ -231,6 +232,7 @@ def run(args: argparse.Namespace) -> None:
               "estimate_note": "Batch-count extrapolation; excludes loading/assessment; source may be smoke; not a measured full run",
               "cuda_peak_allocated_bytes": torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None,
               "assessment_evaluated": False, "warnings": list(stage0.get("warnings", [])) + [
+                  *([device_warning] if args.device == "cuda" else []),
                   "One independently trained 128->6 projection; not the exact Stage-0.5 compressed coordinates.",
                   *(["Smoke/benchmark uses limited data and is not scientific assessment evidence."] if limited else []),
               ],
@@ -319,7 +321,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu-threads", type=int, default=1)
     parser.add_argument("--device", choices=("cpu", "cuda", "auto"), default="cpu",
-                        help="CPU is the conservative simulator default; benchmark CUDA explicitly before a full GPU run.")
+                        help="CPU-only default.qubit pilot; cuda warns and falls back to CPU; auto also uses CPU.")
     args = parser.parse_args()
     args.subset_samples = args.subset_samples if args.subset_samples is not None else (32 if args.smoke_test else 4096)
     args.epochs = args.epochs if args.epochs is not None else (1 if args.smoke_test else 2 if args.benchmark else 30)
