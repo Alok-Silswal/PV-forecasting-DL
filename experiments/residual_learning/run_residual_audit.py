@@ -23,9 +23,8 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.residual_learning.extract_residual_dataset import (
     CHECKPOINT, WARNINGS, extract_residual_dataset, output_paths,
-    save_json, scaler_stats, setup, sha256,
+    save_json, scaler_stats, setup, sha256, resolve_processed_csv,
 )
-from experiments.residual_learning.data_paths import resolve_processed_csv
 from models.residual_learning.residual_mlp import ResidualMLP
 
 ALPHAS = [0.01, 0.1, 1.0, 10.0, 100.0]

@@ -23,9 +23,9 @@ import torch
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
 
-from experiments.residual_learning.data_paths import path_diagnostics, resolve_processed_csv
-
 ROOT = Path(__file__).resolve().parents[2]
+PROCESSED_CSV_PATHS = (ROOT / "data/processed/DKASC_Preprocessed.csv",
+                       Path("/kaggle/working/Processed.csv"))
 FEATURES = [
     "Weather_Temperature_Celsius", "Weather_Relative_Humidity",
     "Global_Horizontal_Radiation", "Diffuse_Horizontal_Radiation",
@@ -42,6 +42,31 @@ WARNINGS = [
     "Overlapping windows within blocks make samples statistically dependent.",
     "CPU subnormal flushing is enabled; previously checked against the historical checkpoint.",
 ]
+
+
+def path_diagnostics(processed_csv: Path | None = None) -> str:
+    """Describe the two notebook output paths without searching or writing files."""
+    paths = [processed_csv.expanduser().resolve()] if processed_csv is not None else []
+    paths += list(PROCESSED_CSV_PATHS)
+    return "\n".join([
+        f"Project root: {ROOT}", f"Current working directory: {Path.cwd()}",
+        *[f"{path}: exists={path.exists()}, is_file={path.is_file()}" for path in paths],
+        "Select an existing file with --processed-csv PATH; .pt artifacts are not substitutes.",
+    ])
+
+
+def resolve_processed_csv(processed_csv: Path | None = None) -> Path:
+    """Honor an explicit file; otherwise require one unique known notebook output."""
+    paths = ([processed_csv.expanduser().resolve()] if processed_csv is not None
+             else list(PROCESSED_CSV_PATHS))
+    matches = [path for path in paths if path.is_file()]
+    if not matches:
+        raise FileNotFoundError("Processed CSV missing.\n" + path_diagnostics(processed_csv))
+    if len(matches) > 1:
+        raise ValueError("Ambiguous processed CSV; use --processed-csv PATH.\n" + path_diagnostics())
+    selected = matches[0].resolve()
+    logging.info("Selected processed CSV: %s", selected)
+    return selected
 
 
 def sha256(path: Path) -> str:
