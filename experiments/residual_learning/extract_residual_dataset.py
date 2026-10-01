@@ -23,13 +23,14 @@ import torch
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
 
+from experiments.residual_learning.data_paths import path_diagnostics, resolve_processed_csv
+
 ROOT = Path(__file__).resolve().parents[2]
 FEATURES = [
     "Weather_Temperature_Celsius", "Weather_Relative_Humidity",
     "Global_Horizontal_Radiation", "Diffuse_Horizontal_Radiation",
     "Radiation_Global_Tilted", "Radiation_Diffuse_Tilted", "Active_Power",
 ]
-CSV = ROOT / "data/processed/DKASC_Preprocessed.csv"
 CHECKPOINT = ROOT / "experiments/proposed/horizon_15/run_1/checkpoints/best_checkpoint.pt"
 TRAIN_END = 745702
 EXPECTED_ROWS = 1065289
@@ -124,11 +125,13 @@ def classical_model() -> torch.nn.Module:
 
 
 def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = None,
-                             seed: int = 42, cpu_threads: int = 1) -> Path:
+                             seed: int = 42, cpu_threads: int = 1,
+                             processed_csv: Path | None = None) -> Path:
     """Extract the three validation partitions and write a completion manifest last."""
     if batch_size < 1 or (max_samples is not None and max_samples < 1):
         raise ValueError("batch_size and max_samples must be positive.")
-    for path in (CSV, CHECKPOINT):
+    csv_path = resolve_processed_csv(processed_csv)
+    for path in (csv_path, CHECKPOINT):
         if not path.is_file():
             raise FileNotFoundError(f"Required historical input missing: {path}")
     destination, _ = output_paths(max_samples)
@@ -137,7 +140,7 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
     started = time.perf_counter()
     device = setup(seed, cpu_threads)
     logging.info("Loading historical processed CSV; device=%s", device)
-    frame = pd.read_csv(CSV, parse_dates=["timestamp"])
+    frame = pd.read_csv(csv_path, parse_dates=["timestamp"])
     if len(frame) != EXPECTED_ROWS or int(0.7 * len(frame)) != TRAIN_END:
         raise ValueError("Processed-data row count/boundary differs from the recovered contract.")
     if frame[FEATURES].isna().any().any() or not np.isfinite(frame[FEATURES].to_numpy()).all():
@@ -218,8 +221,9 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
         hook.remove()
         captured.clear()
     manifest = {
-        "schema_version": 1, "source_processed_csv": CSV.relative_to(ROOT).as_posix(),
-        "processed_csv_sha256": sha256(CSV), "checkpoint": CHECKPOINT.relative_to(ROOT).as_posix(),
+        "schema_version": 1,
+        "source_processed_csv": csv_path.relative_to(ROOT).as_posix() if csv_path.is_relative_to(ROOT) else csv_path.as_posix(),
+        "processed_csv_sha256": sha256(csv_path), "checkpoint": CHECKPOINT.relative_to(ROOT).as_posix(),
         "checkpoint_sha256": sha256(CHECKPOINT), "checkpoint_epoch_zero_based": checkpoint["epoch"],
         "run_number": 1, "features": FEATURES, "target": "Active_Power",
         "training_scaler_row_range": [0, TRAIN_END],
@@ -263,10 +267,15 @@ def main() -> None:
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu-threads", type=int, default=1)
+    parser.add_argument("--processed-csv", type=Path, help="Existing processed CSV; relative paths resolve from cwd.")
+    parser.add_argument("--diagnose-paths", action="store_true", help="Print read-only path/artifact diagnostics and exit.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if args.diagnose_paths:
+        print(path_diagnostics(args.processed_csv))
+        return
     cap = args.max_samples if args.max_samples is not None else (1024 if args.smoke_test else None)
-    extract_residual_dataset(args.batch_size, cap, args.seed, args.cpu_threads)
+    extract_residual_dataset(args.batch_size, cap, args.seed, args.cpu_threads, args.processed_csv)
 
 
 if __name__ == "__main__":

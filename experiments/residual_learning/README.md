@@ -15,9 +15,28 @@ python -m experiments.residual_learning.run_residual_audit
 ```
 
 CUDA is automatic; CPU fallback uses one thread and flushes subnormal numbers.
-Required inputs are `data/processed/DKASC_Preprocessed.csv` and the original
+Required inputs are the existing processed CSV and the original
 `experiments/proposed/horizon_15/run_1/checkpoints/best_checkpoint.pt`.
-Kaggle must have these files in the project tree; old six-feature `.pt` files are unused.
+Locally the CSV is `data/processed/DKASC_Preprocessed.csv`. On Kaggle the first
+preparation notebook writes `/kaggle/working/Processed.csv` through
+`config.PROCESSED_DATA_FILE`; the second notebook reads that file and writes
+repository-root `artifacts/*.pt` and scalers. The extractor detects these two
+known CSV locations, logs its choice, and rejects ambiguity. It never uses old
+six-feature `.pt` files as substitutes or regenerates/copies preprocessing data.
+
+Read-only diagnostics and an explicit Kaggle override:
+
+```bash
+python -m experiments.residual_learning.extract_residual_dataset --diagnose-paths
+python -m experiments.residual_learning.run_residual_audit --extract-if-missing --smoke-test --processed-csv /kaggle/working/Processed.csv
+```
+
+Both scripts accept `--processed-csv PATH`. Relative overrides resolve from cwd.
+External source paths are recorded in the manifest and still undergo the same
+contract checks and SHA256 verification when reusing extracted datasets.
+The optional `DKASC_Preprocessed.csv.gz` output is written relative to the first
+notebook's cwd; it is reported by diagnostics but not automatically selected.
+It may be selected explicitly with `--processed-csv` (pandas detects compression).
 
 The original validation period supplies 159,767 windows. Boundaries are 60%/80%
 of window starts. Discarding starts `[95860,95886)` and `[127813,127839)` leaves:

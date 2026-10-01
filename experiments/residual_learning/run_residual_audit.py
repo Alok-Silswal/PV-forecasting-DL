@@ -22,9 +22,10 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.residual_learning.extract_residual_dataset import (
-    CHECKPOINT, CSV, ROOT, WARNINGS, extract_residual_dataset, output_paths,
+    CHECKPOINT, WARNINGS, extract_residual_dataset, output_paths,
     save_json, scaler_stats, setup, sha256,
 )
+from experiments.residual_learning.data_paths import resolve_processed_csv
 from models.residual_learning.residual_mlp import ResidualMLP
 
 ALPHAS = [0.01, 0.1, 1.0, 10.0, 100.0]
@@ -181,11 +182,12 @@ def run_audit(args: argparse.Namespace) -> None:
     if not manifest_path.is_file():
         if not args.extract_if_missing:
             raise FileNotFoundError(f"Missing completed extraction: {manifest_path}. Run extractor or use --extract-if-missing.")
-        extract_residual_dataset(args.extraction_batch_size, args.max_samples, args.seed, args.cpu_threads)
+        extract_residual_dataset(args.extraction_batch_size, args.max_samples, args.seed, args.cpu_threads, args.processed_csv)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest["max_samples_per_partition"] != args.max_samples or manifest["schema_version"] != 1:
         raise ValueError("Extraction mode/schema mismatch.")
-    for path, key in ((CSV, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
+    csv_path = resolve_processed_csv(args.processed_csv)
+    for path, key in ((csv_path, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
         if not path.is_file() or sha256(path) != manifest[key]:
             raise ValueError(f"Historical source changed or missing since extraction: {path}")
     fit_dir = artifact_dir / "residual_controls"
@@ -224,6 +226,7 @@ def run_audit(args: argparse.Namespace) -> None:
                 "scaler_fit_partition": "train", "residual_scaler_units": "original Active_Power",
                 "mlp_selection": "minimum standardized residual MSE on tuning; no assessment selection",
                 "extraction_manifest_sha256": sha256(manifest_path)}
+    settings["processed_csv"] = str(csv_path)
     save_json(fit_dir / "settings.json", settings)
     save_json(fit_dir / "mlp_history.json", history)
     save_json(fit_dir / "ridge_tuning.json", ridge_scores)
@@ -325,6 +328,7 @@ def main() -> None:
     parser.add_argument("--mlp-batch-size", type=int, default=512)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu-threads", type=int, default=1)
+    parser.add_argument("--processed-csv", type=Path, help="Existing processed CSV; relative paths resolve from cwd.")
     args = parser.parse_args()
     if args.smoke_test and args.max_samples is None:
         args.max_samples = 1024
