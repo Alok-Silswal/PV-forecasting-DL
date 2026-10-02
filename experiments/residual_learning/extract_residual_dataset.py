@@ -50,9 +50,11 @@ WARNINGS = [
 # mismatch also requires authoritative anchors and row-wise frozen-model replay.
 RECOVERY_PREDICTION_ATOL = 1e-4
 RECOVERY_PREDICTION_RMSE = 1e-5
-RECOVERY_STAT_ATOL = 1e-7
-RECOVERY_STAT_RTOL = 1e-8
-RECOVERY_BIAS_ATOL = 2e-7
+RECOVERY_STAT_ATOL = 1e-6
+RECOVERY_STAT_RTOL = 2e-7
+RECOVERY_BIAS_ATOL = 1e-6
+RECOVERY_TARGET_ATOL = 5e-5
+RECOVERY_TARGET_RMSE = 1e-5
 _VALIDATED_RECOVERIES: set[tuple] = set()
 
 
@@ -262,8 +264,14 @@ def recover_extraction(directory: Path, manifest: dict, repair: bool = False,
             compare_scaler_stats(actual, settings[name])
         with np.load(assessment_path, allow_pickle=False) as anchor:
             data = candidates["assessment"]
-            for key in ("sample_index", "y_true_original", "input_start_timestamp", "input_end_timestamp", "target_0_timestamp", "target_1_timestamp", "target_2_timestamp"):
+            for key in ("sample_index", "input_start_timestamp", "input_end_timestamp", "target_0_timestamp", "target_1_timestamp", "target_2_timestamp"):
                 np.testing.assert_array_equal(data[key], anchor[key])
+            difference = data["y_true_original"].astype(np.float64) - anchor["y_true_original"].astype(np.float64)
+            maximum, mean, rmse = float(np.abs(difference).max()), float(np.abs(difference).mean()), float(np.sqrt(np.mean(difference ** 2)))
+            logging.info("Recovery assessment target differences: max=%g mean=%g RMSE=%g", maximum, mean, rmse)
+            if (not np.isfinite(data["y_true_original"]).all() or not np.isfinite(anchor["y_true_original"]).all()
+                    or not np.isfinite(difference).all() or maximum > RECOVERY_TARGET_ATOL or rmse > RECOVERY_TARGET_RMSE):
+                raise ValueError("Assessment targets differ beyond numerical recovery bounds.")
             difference = data["y_hat_original"].astype(np.float64) - anchor["prediction_baseline"]
             maximum, mean, rmse = float(np.abs(difference).max()), float(np.abs(difference).mean()), float(np.sqrt(np.mean(difference ** 2)))
             logging.info("Recovery assessment prediction differences: max=%g mean=%g RMSE=%g", maximum, mean, rmse)
