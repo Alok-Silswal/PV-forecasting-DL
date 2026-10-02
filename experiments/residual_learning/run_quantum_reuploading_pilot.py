@@ -7,7 +7,6 @@ their provenance remains unresolved and they are excluded from comparisons.
 
 import argparse
 import csv
-import hashlib
 import json
 import logging
 import math
@@ -21,7 +20,7 @@ import torch
 from sklearn.preprocessing import StandardScaler
 
 from experiments.residual_learning.extract_residual_dataset import (
-    ROOT, output_paths, save_json, setup, sha256,
+    ROOT, output_paths, save_json, setup, sha256, require_new_files, verify_recorded_file,
 )
 from experiments.residual_learning.run_residual_audit import (
     deltas, forecast_metrics, load_partition, mlp_predict,
@@ -40,16 +39,7 @@ HISTORICAL_NOTE = (
 
 def verify_snapshot(path: Path, recorded: dict[str, str]) -> None:
     """Accept only the recorded snapshot, allowing Git's JSON newline conversion."""
-    matches = [value for key, value in recorded.items()
-               if key.replace("\\", "/").rsplit("/", 1)[-1] == path.name]
-    if len(matches) != 1:
-        raise ValueError(f"Missing/ambiguous first-pilot snapshot hash for {path.name}.")
-    raw = path.read_bytes()
-    hashes = {hashlib.sha256(raw).hexdigest()}
-    if path.suffix == ".json":
-        hashes.add(hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest())
-    if matches[0] not in hashes:
-        raise ValueError(f"First-pilot source snapshot changed: {path}. Comparator/scaler provenance is not comparable.")
+    verify_recorded_file(path, recorded)
 
 
 def verify_reuploading(model: QuantumResidualReuploadVQC, features: np.ndarray) -> dict:
@@ -101,6 +91,27 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("Smoke verification needs at least three fitting samples.")
     source = args.stage0_artifacts.resolve()
     classical = args.stage0_5_artifacts.resolve()
+    artifacts, evaluation = output_paths(None)
+    artifacts, evaluation = artifacts / "quantum_reuploading_pilot", evaluation / "quantum_reuploading_pilot"
+    if args.smoke_test:
+        suffix = Path(f"_smoke/quantum_reuploading_pilot/max_{args.smoke_samples}/proposed/horizon_15/run_1")
+        artifacts, evaluation = ROOT / "artifacts/residual_learning" / suffix, ROOT / "evaluation/residual_learning" / suffix
+    summary_path = evaluation / "quantum_reuploading_summary.json"
+    if summary_path.is_file():
+        completed = json.loads(summary_path.read_text(encoding="utf-8"))
+        if "quantum_6q_reuploading" not in completed["assessment_metrics"]:
+            raise ValueError("Existing re-uploading summary is not a completed assessment.")
+        manifest_path = source / "manifest.json"
+        if manifest_path.is_file() and completed["partitions"] != json.loads(manifest_path.read_text(encoding="utf-8"))["partitions"]:
+            raise ValueError("Completed re-uploading pilot and current extraction provenance differ.")
+        for path in [manifest_path, args.stage0_evaluation / "stage0_summary.json",
+                     args.stage0_5_evaluation / "stage0_5_summary.json", args.quantum_pilot_evaluation / "quantum_pilot_summary.json",
+                     classical / "bias.npy", classical / "latent_scaler.pkl", classical / "centered_residual_scaler.pkl",
+                     *[source / f"{name}.npz" for name in ("train", "tuning", "assessment")]]:
+            if path.is_file():
+                verify_recorded_file(path, completed["source_sha256"])
+        logging.info("Existing re-uploading assessment found; no automatic retraining or checkpoint required: %s", summary_path)
+        return
     paths = {"manifest": source / "manifest.json",
              "stage0": args.stage0_evaluation.resolve() / "stage0_summary.json",
              "stage5": args.stage0_5_evaluation.resolve() / "stage0_5_summary.json",
@@ -141,14 +152,8 @@ def run(args: argparse.Namespace) -> None:
     for name in ("baseline", "bias_only", "stage0_ridge", "stage0_mlp", "stage0_5_6d_mlp"):
         if metrics[name] != quantum["assessment_metrics"][name]:
             raise ValueError(f"Current authoritative {name} differs from the first pilot's comparator snapshot.")
-    artifacts, evaluation = output_paths(None)
-    artifacts, evaluation = artifacts / "quantum_reuploading_pilot", evaluation / "quantum_reuploading_pilot"
-    if args.smoke_test:
-        suffix = Path(f"_smoke/quantum_reuploading_pilot/max_{args.smoke_samples}/proposed/horizon_15/run_1")
-        artifacts, evaluation = ROOT / "artifacts/residual_learning" / suffix, ROOT / "evaluation/residual_learning" / suffix
-    for directory in (artifacts, evaluation):
-        if directory.exists():
-            raise FileExistsError(f"Refusing to overwrite re-uploading outputs: {directory}")
+    require_new_files([artifacts / name for name in ("best_checkpoint.pt", "latent_scaler.pkl", "centered_residual_scaler.pkl", "settings.json")]
+                      + [evaluation / name for name in ("quantum_reuploading_summary.json", "quantum_reuploading_summary.txt", "metrics.csv", "training_history.json", "assessment_predictions.npz")])
     source_hashes = {str(path): sha256(path) for path in required if path.name != "assessment.npz"}
     device = torch.device("cpu")
     setup(42, 1)
@@ -190,7 +195,7 @@ def run(args: argparse.Namespace) -> None:
                 "source_sha256": dict(source_hashes), "scaling": "Exact Stage-0.5 scaler bytes; SHA256 matches first-pilot snapshot; verified against training only",
                 "historical_discrepancy": HISTORICAL_NOTE, "smoke_test": args.smoke_test}
     for directory in (artifacts, evaluation):
-        directory.mkdir(parents=True, exist_ok=False)
+        directory.mkdir(parents=True, exist_ok=True)
     for name, raw in scaler_bytes.items():
         with (artifacts / f"{name}.pkl").open("xb") as handle:
             handle.write(raw)

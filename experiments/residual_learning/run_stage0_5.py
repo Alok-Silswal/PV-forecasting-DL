@@ -5,6 +5,7 @@ Reads completed Stage-0 artifacts only. No extraction, backbone inference or HPO
 
 import argparse
 import csv
+import hashlib
 import json
 import logging
 import math
@@ -20,7 +21,8 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.residual_learning.extract_residual_dataset import (
-    ROOT, output_paths, save_json, scaler_stats, setup, sha256,
+    ROOT, output_paths, save_json, scaler_stats, setup, sha256, require_new_files,
+    validate_extraction, verify_recorded_file,
 )
 from experiments.residual_learning.run_residual_audit import (
     deltas, forecast_metrics, load_partition, mlp_predict,
@@ -113,7 +115,7 @@ def run(args: argparse.Namespace) -> None:
     sources = args.stage0_artifacts.resolve()
     stage0_summary_path = args.stage0_evaluation.resolve() / "stage0_summary.json"
     manifest_path = sources / "manifest.json"
-    required = [manifest_path, stage0_summary_path, *[sources / f"{name}.npz" for name in ("train", "tuning", "assessment")]]
+    required = [manifest_path, stage0_summary_path, sources / "train.npz"]
     for path in required:
         if not path.is_file():
             raise FileNotFoundError(f"Required completed Stage-0 input missing: {path}. Run Stage 0 first; Stage 0.5 never extracts data.")
@@ -139,9 +141,59 @@ def run(args: argparse.Namespace) -> None:
         suffix = Path(f"_smoke/stage0_5/max_{args.smoke_samples}/proposed/horizon_15/run_1")
         artifact_dir = ROOT / "artifacts/residual_learning" / suffix
         evaluation_dir = ROOT / "evaluation/residual_learning" / suffix
-    for directory in (artifact_dir, evaluation_dir):
-        if directory.exists():
-            raise FileExistsError(f"Refusing to overwrite Stage-0.5 outputs: {directory}")
+    summary_path = evaluation_dir / "stage0_5_summary.json"
+    if summary_path.is_file():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        settings_path, bias_path = artifact_dir / "settings.json", artifact_dir / "bias.npy"
+        if not settings_path.is_file() or not bias_path.is_file():
+            raise FileNotFoundError("Completed Stage 0.5 requires its authoritative settings.json and bias.npy; refusing to retrain.")
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        if summary["partitions"] != manifest["partitions"] or settings["partitions"] != manifest["partitions"]:
+            raise ValueError("Completed Stage-0.5 partition provenance differs.")
+        validate_extraction(sources, manifest, existing_only=True)
+        train = load_partition(sources, "train", manifest)
+        bias = np.load(bias_path, allow_pickle=False)
+        residual = train["y_true_original"].astype(np.float64) - train["y_hat_original"].astype(np.float64)
+        np.testing.assert_allclose(bias, residual.mean(axis=0), atol=1e-12, rtol=1e-12)
+        np.testing.assert_array_equal(bias, settings["bias"])
+        np.testing.assert_array_equal(bias, summary["learned_bias_original"])
+        if settings["scaler_fit_partition"] != "train" or settings["bias_fit_partition"] != "train":
+            raise ValueError("Recovery requires training-only scaler/bias provenance.")
+        quantum_path = args.stage0_evaluation.resolve() / "quantum_pilot/quantum_pilot_summary.json"
+        recorded_hashes = {}
+        if quantum_path.is_file():
+            quantum = json.loads(quantum_path.read_text(encoding="utf-8"))
+            if quantum["partitions"] != manifest["partitions"]:
+                raise ValueError("Quantum comparator and Stage-0.5 partition provenance differ.")
+            recorded_hashes = quantum["source_sha256"]
+            for path in (manifest_path, stage0_summary_path, settings_path, bias_path):
+                verify_recorded_file(path, recorded_hashes)
+        for name, values in (("latent_scaler", train["z"]), ("centered_residual_scaler", residual - bias)):
+            path = artifact_dir / f"{name}.pkl"
+            if path.exists():
+                raw = path.read_bytes()
+                scaler = pickle.loads(raw)
+            else:
+                scaler = StandardScaler().fit(values)
+                raw = pickle.dumps(scaler)
+            for key, value in scaler_stats(scaler).items():
+                np.testing.assert_allclose(value, settings[name][key], atol=1e-12, rtol=1e-12)
+            hashes = [value for key, value in recorded_hashes.items()
+                      if key.replace("\\", "/").rsplit("/", 1)[-1] == f"{name}.pkl"]
+            if recorded_hashes and (len(hashes) != 1 or hashlib.sha256(raw).hexdigest() != hashes[0]):
+                raise ValueError(f"Stage-0.5 {name} bytes differ from the quantum comparator's recorded SHA256; no file written.")
+            if not path.exists():
+                with path.open("xb") as handle:
+                    handle.write(raw)
+                logging.info("Restored training-only scaler: %s", path)
+        logging.info("Existing Stage-0.5 evaluation found; scalers verified/restored; no MLP retraining or checkpoint required.")
+        return
+    for name in ("tuning", "assessment"):
+        if not (sources / f"{name}.npz").is_file():
+            raise FileNotFoundError(f"Missing Stage-0 {name}.npz; run Stage 0 extraction first.")
+        required.append(sources / f"{name}.npz")
+    require_new_files([artifact_dir / name for name in ("latent_scaler.pkl", "centered_residual_scaler.pkl", "bias.npy", "bottleneck_mlp.pt", "settings.json")]
+                      + [evaluation_dir / name for name in ("stage0_5_summary.json", "stage0_5_summary.txt", "metrics.csv", "training_history.json")])
     source_hashes = {str(path): sha256(path) for path in required if path.name != "assessment.npz"}
     source_hashes[str(sources / "assessment.npz")] = manifest["partitions"]["assessment"]["sha256"]
     device = setup(args.seed, args.cpu_threads)

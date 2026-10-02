@@ -15,7 +15,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.residual_learning.extract_residual_dataset import (
-    ROOT, output_paths, save_json, setup, sha256,
+    ROOT, output_paths, save_json, setup, sha256, require_new_files, verify_recorded_file,
 )
 from experiments.residual_learning.run_residual_audit import (
     deltas, forecast_metrics, load_partition, mlp_predict,
@@ -125,6 +125,33 @@ def run(args: argparse.Namespace) -> None:
     started = time.perf_counter()
     source, classical = args.stage0_artifacts.resolve(), args.stage0_5_artifacts.resolve()
     manifest_path = source / "manifest.json"
+    artifacts, evaluation = output_paths(None)
+    if args.smoke_test or args.benchmark:
+        suffix = Path("_smoke/quantum_pilot")
+        if args.benchmark:
+            suffix = suffix / "_benchmark"
+        suffix = suffix / f"max_{args.subset_samples}/proposed/horizon_15/run_1"
+        if args.benchmark:
+            suffix = suffix / args.device
+        artifacts = ROOT / "artifacts/residual_learning" / suffix
+        evaluation = ROOT / "evaluation/residual_learning" / suffix
+    else:
+        artifacts, evaluation = artifacts / "quantum_pilot", evaluation / "quantum_pilot"
+    summary_path = evaluation / ("benchmark.json" if args.benchmark else "quantum_pilot_summary.json")
+    if summary_path.is_file():
+        completed = json.loads(summary_path.read_text(encoding="utf-8"))
+        if not args.benchmark and (not completed["assessment_evaluated"] or "quantum_6q_angle" not in completed["assessment_metrics"]):
+            raise ValueError("Existing quantum summary is not a completed assessment.")
+        if manifest_path.is_file() and completed["partitions"] != json.loads(manifest_path.read_text(encoding="utf-8"))["partitions"]:
+            raise ValueError("Completed quantum pilot and current extraction provenance differ.")
+        for path in [manifest_path, args.stage0_evaluation / "stage0_summary.json",
+                     args.stage0_5_evaluation / "stage0_5_summary.json", classical / "settings.json", classical / "bias.npy",
+                     classical / "latent_scaler.pkl", classical / "centered_residual_scaler.pkl",
+                     *[source / f"{name}.npz" for name in ("train", "tuning", "assessment")]]:
+            if path.is_file():
+                verify_recorded_file(path, completed["source_sha256"])
+        logging.info("Existing quantum pilot result found; no retraining, copied scalers or checkpoint required: %s", summary_path)
+        return
     summary0_path = args.stage0_evaluation.resolve() / "stage0_summary.json"
     summary5_path = args.stage0_5_evaluation.resolve() / "stage0_5_summary.json"
     required = [manifest_path, summary0_path, summary5_path, classical / "settings.json",
@@ -147,21 +174,8 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("Full quantum pilot requires full Stage-0 and Stage-0.5 artifacts.")
     if not args.benchmark and not (source / "assessment.npz").is_file():
         raise FileNotFoundError("Stage-0 assessment.npz missing; run Stage 0 first.")
-    artifacts, evaluation = output_paths(None)
-    if limited:
-        suffix = Path("_smoke/quantum_pilot")
-        if args.benchmark:
-            suffix = suffix / "_benchmark"
-        suffix = suffix / f"max_{args.subset_samples}/proposed/horizon_15/run_1"
-        if args.benchmark:
-            suffix = suffix / args.device
-        artifacts = ROOT / "artifacts/residual_learning" / suffix
-        evaluation = ROOT / "evaluation/residual_learning" / suffix
-    else:
-        artifacts, evaluation = artifacts / "quantum_pilot", evaluation / "quantum_pilot"
-    for directory in (artifacts, evaluation):
-        if directory.exists():
-            raise FileExistsError(f"Refusing to overwrite quantum pilot outputs: {directory}")
+    require_new_files([artifacts / name for name in ("best_checkpoint.pt", "latent_scaler.pkl", "centered_residual_scaler.pkl", "settings.json")]
+                      + [evaluation / name for name in ("benchmark.json", "benchmark.txt", "quantum_pilot_summary.json", "quantum_pilot_summary.txt", "metrics.csv", "training_history.json")])
     source_hashes = {str(path): sha256(path) for path in required}
     setup(args.seed, args.cpu_threads)
     device_warning = "This pilot's default.qubit implementation is CPU-only; --device cuda falls back to CPU for the entire residual model."
@@ -196,7 +210,7 @@ def run(args: argparse.Namespace) -> None:
     logging.info("default.qubit / backprop / shots=None / %s; parameters=%s", device, checks["parameter_counts"])
     epoch, history = fit(model, train_z, train_r, tune_z, tune_r, args, device)
     for directory in (artifacts, evaluation):
-        directory.mkdir(parents=True, exist_ok=False)
+        directory.mkdir(parents=True, exist_ok=True)
     checkpoint = artifacts / "best_checkpoint.pt"
     torch.save({"model_state_dict": {key: value.detach().cpu() for key, value in model.state_dict().items()},
                 "selected_epoch": epoch, "bias": bias.tolist()}, checkpoint)

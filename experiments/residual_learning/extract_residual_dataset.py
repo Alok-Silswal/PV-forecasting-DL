@@ -6,6 +6,7 @@ Existing forecasting artifacts are read only; no test data is extracted.
 
 import argparse
 import hashlib
+import io
 import json
 import logging
 import os
@@ -83,6 +84,36 @@ def save_json(path: Path, value: Any) -> None:
         json.dump(value, handle, indent=2, allow_nan=False)
 
 
+def require_new_files(paths: list[Path]) -> None:
+    """Protect named outputs while allowing existing directories."""
+    for path in paths:
+        if path.exists():
+            raise FileExistsError(f"Incomplete experiment output already exists; refusing to overwrite: {path}")
+
+
+def verify_recorded_file(path: Path, recorded: dict[str, str]) -> None:
+    """Check a source snapshot, allowing only Git's JSON newline conversion."""
+    matches = [value for key, value in recorded.items()
+               if key.replace("\\", "/").rsplit("/", 1)[-1] == path.name]
+    if len(matches) != 1:
+        raise ValueError(f"Missing/ambiguous recorded hash for {path.name}.")
+    hashes = {sha256(path)}
+    if path.suffix == ".json":
+        hashes.add(hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest())
+    if matches[0] not in hashes:
+        raise ValueError(f"Existing source conflicts with recorded SHA256: {path}")
+
+
+def validate_extraction(directory: Path, manifest: dict, existing_only: bool = False) -> None:
+    """Verify partition hashes/shapes without requiring CSV or backbone inference."""
+    from experiments.residual_learning.run_residual_audit import load_partition
+
+    for name in ("train", "tuning", "assessment"):
+        if existing_only and not (directory / f"{name}.npz").exists():
+            continue
+        load_partition(directory, name, manifest)
+
+
 def setup(seed: int, cpu_threads: int) -> torch.device:
     """Configure deterministic execution without changing global project config."""
     if cpu_threads < 1:
@@ -155,15 +186,35 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
     """Extract the three validation partitions and write a completion manifest last."""
     if batch_size < 1 or (max_samples is not None and max_samples < 1):
         raise ValueError("batch_size and max_samples must be positive.")
+    destination, _ = output_paths(max_samples)
+    destination.mkdir(parents=True, exist_ok=True)
+    manifest_path = destination / "manifest.json"
+    recorded = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else None
+    if recorded is not None:
+        if (recorded["schema_version"] != 1 or recorded["max_samples_per_partition"] != max_samples
+                or recorded["features"] != FEATURES or recorded["input_length"] != LOOKBACK
+                or recorded["output_length"] != OUTPUTS or recorded["stride"] != 1):
+            raise ValueError("Authoritative extraction manifest differs from the requested contract.")
+        validate_extraction(destination, recorded, existing_only=True)
+        if all((destination / f"{name}.npz").is_file() for name in ("train", "tuning", "assessment")):
+            logging.info("Existing extraction artifacts verified: %s", destination)
+            return destination
+        # Replay the recorded numerical execution, including CPU on GPU hosts.
+        seed, batch_size, cpu_threads = recorded["seed"], recorded["batch_size"], recorded["cpu_threads"]
     csv_path = resolve_processed_csv(processed_csv)
     for path in (csv_path, CHECKPOINT):
         if not path.is_file():
             raise FileNotFoundError(f"Required historical input missing: {path}")
-    destination, _ = output_paths(max_samples)
-    if destination.exists():
-        raise FileExistsError(f"Refusing to overwrite extraction directory: {destination}")
+    if recorded is not None:
+        for path, key in ((csv_path, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
+            if sha256(path) != recorded[key]:
+                raise ValueError(f"Historical recovery source differs from manifest: {path}")
     started = time.perf_counter()
     device = setup(seed, cpu_threads)
+    if recorded is not None:
+        device = torch.device(recorded["device"])
+        if device.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("Recovery requires the manifest's recorded CUDA device; CPU substitution would change provenance.")
     logging.info("Loading historical processed CSV; device=%s", device)
     frame = pd.read_csv(csv_path, parse_dates=["timestamp"])
     if len(frame) != EXPECTED_ROWS or int(0.7 * len(frame)) != TRAIN_END:
@@ -175,6 +226,10 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
     val_end = TRAIN_END + int(0.15 * len(frame))
     feature_scaler = StandardScaler().fit(frame[FEATURES].iloc[:TRAIN_END])
     target_scaler = StandardScaler().fit(frame.Active_Power.iloc[:TRAIN_END].to_numpy().reshape(-1, 1))
+    if recorded is not None:
+        for name, scaler in (("feature_scaler", feature_scaler), ("target_scaler", target_scaler)):
+            for key, value in scaler_stats(scaler).items():
+                np.testing.assert_allclose(value, recorded[name][key], atol=1e-12, rtol=1e-12)
     features = feature_scaler.transform(frame[FEATURES].iloc[TRAIN_END:val_end])
     targets = target_scaler.transform(frame.Active_Power.iloc[TRAIN_END:val_end].to_numpy().reshape(-1, 1))[:, 0]
     timestamps = frame.timestamp.iloc[TRAIN_END:val_end].to_numpy(dtype="datetime64[ns]")
@@ -204,8 +259,11 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
                 raise RuntimeError("Read-only fusion hook changed model predictions.")
             assert len(captured) == 1 and captured[0].mean(dim=1).shape == (len(probe), 128)
             captured.clear()
-            destination.mkdir(parents=True, exist_ok=False)
             for name, indices in starts.items():
+                output_path = destination / f"{name}.npz"
+                if recorded is not None and output_path.is_file():
+                    partition_manifest[name] = recorded["partitions"][name]
+                    continue
                 latent_batches, prediction_batches = [], []
                 for offset in tqdm(range(0, len(indices), batch_size), desc=f"Extract {name}"):
                     batch_indices = indices[offset:offset + batch_size]
@@ -232,7 +290,17 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
                 for key, shift in [("input_start_timestamp", 0), ("input_end_timestamp", 23),
                                    ("target_0_timestamp", 24), ("target_1_timestamp", 25), ("target_2_timestamp", 26)]:
                     data[key] = timestamps[indices + shift]
-                np.savez_compressed(destination / f"{name}.npz", **data)
+                with io.BytesIO() as archive:
+                    np.savez_compressed(archive, **data)
+                    digest = hashlib.sha256(archive.getbuffer()).hexdigest()
+                    if recorded is not None and digest != recorded["partitions"][name]["sha256"]:
+                        raise ValueError(f"Recovered {name}.npz SHA256 differs from authoritative manifest; no file written. Use the recorded numerical environment/device/batch size.")
+                    if output_path.exists():
+                        if sha256(output_path) != digest:
+                            raise ValueError(f"Existing extraction without manifest conflicts with generated {name}: {output_path}")
+                    else:
+                        with output_path.open("xb") as handle:
+                            handle.write(archive.getbuffer())
                 partition_manifest[name] = {
                     "samples": len(indices), "first_sample_index": int(indices[0]),
                     "last_sample_index": int(indices[-1]), "latent_shape": list(latent.shape),
@@ -240,11 +308,15 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
                     "last_input_end": str(data["input_end_timestamp"][-1]),
                     "first_target": str(data["target_0_timestamp"][0]),
                     "last_target": str(data["target_2_timestamp"][-1]),
-                    "sha256": sha256(destination / f"{name}.npz"),
+                    "sha256": digest,
                 }
     finally:
         hook.remove()
         captured.clear()
+    if recorded is not None:
+        validate_extraction(destination, recorded)
+        logging.info("Missing extraction artifacts restored; authoritative manifest unchanged: %s", destination)
+        return destination
     manifest = {
         "schema_version": 1,
         "source_processed_csv": csv_path.relative_to(ROOT).as_posix() if csv_path.is_relative_to(ROOT) else csv_path.as_posix(),

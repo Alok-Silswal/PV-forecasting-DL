@@ -24,6 +24,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from experiments.residual_learning.extract_residual_dataset import (
     CHECKPOINT, WARNINGS, extract_residual_dataset, output_paths,
     save_json, scaler_stats, setup, sha256, resolve_processed_csv,
+    validate_extraction, require_new_files,
 )
 from models.residual_learning.residual_mlp import ResidualMLP
 
@@ -178,20 +179,42 @@ def run_audit(args: argparse.Namespace) -> None:
     started = time.perf_counter()
     artifact_dir, evaluation_dir = output_paths(args.max_samples)
     manifest_path = artifact_dir / "manifest.json"
-    if not manifest_path.is_file():
+    if not manifest_path.is_file() or any(not (artifact_dir / f"{name}.npz").is_file()
+                                         for name in ("train", "tuning", "assessment")):
         if not args.extract_if_missing:
             raise FileNotFoundError(f"Missing completed extraction: {manifest_path}. Run extractor or use --extract-if-missing.")
         extract_residual_dataset(args.extraction_batch_size, args.max_samples, args.seed, args.cpu_threads, args.processed_csv)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest["max_samples_per_partition"] != args.max_samples or manifest["schema_version"] != 1:
         raise ValueError("Extraction mode/schema mismatch.")
+    summary_path = evaluation_dir / "stage0_summary.json"
+    if summary_path.is_file():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if summary["partitions"] != manifest["partitions"]:
+            raise ValueError("Existing Stage-0 evaluation and extraction provenance differ.")
+        validate_extraction(artifact_dir, manifest)
+        prediction_path = evaluation_dir / "assessment_predictions.npz"
+        if prediction_path.is_file():
+            assessment = load_partition(artifact_dir, "assessment", manifest)
+            with np.load(prediction_path, allow_pickle=False) as saved:
+                np.testing.assert_array_equal(saved["y_true_original"], assessment["y_true_original"])
+                np.testing.assert_array_equal(saved["prediction_baseline"], assessment["y_hat_original"])
+                for name in ("baseline", "ridge", "mlp"):
+                    measured = forecast_metrics(saved["y_true_original"], saved[f"prediction_{name}"])
+                    reference = summary["assessment_metrics"][name]
+                    for values, expected in [(measured["aggregate"], reference["aggregate"]),
+                                             *[(measured["per_output"][str(h)], reference["per_output"][str(h)]) for h in range(3)]]:
+                        for metric, value in values.items():
+                            np.testing.assert_allclose(value, expected[metric], atol=1e-10, rtol=1e-10)
+        logging.info("Existing Stage-0 evaluation found; extraction artifacts verified/restored.")
+        return
     csv_path = resolve_processed_csv(args.processed_csv)
     for path, key in ((csv_path, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
         if not path.is_file() or sha256(path) != manifest[key]:
             raise ValueError(f"Historical source changed or missing since extraction: {path}")
     fit_dir = artifact_dir / "residual_controls"
-    if evaluation_dir.exists() or fit_dir.exists():
-        raise FileExistsError("Refusing to overwrite existing audit outputs; select a fresh smoke cap or archive only new experiment outputs.")
+    require_new_files([fit_dir / name for name in ("latent_scaler.pkl", "residual_scaler.pkl", "ridge.pkl", "mlp.pt", "settings.json", "mlp_history.json", "ridge_tuning.json")]
+                      + [evaluation_dir / name for name in ("metrics.csv", "assessment_predictions.npz", "stage0_summary.json", "stage0_summary.txt", "forecasts.png", "residual_errors.png")])
     device = setup(args.seed, args.cpu_threads)
     train = load_partition(artifact_dir, "train", manifest)
     tuning = load_partition(artifact_dir, "tuning", manifest)
@@ -212,8 +235,8 @@ def run_audit(args: argparse.Namespace) -> None:
         if rmse < best_rmse:
             selected_ridge, selected_alpha, best_rmse = ridge, alpha, rmse
     model, best_epoch, history = fit_mlp(train_z, train_r, tune_z, tune_r, args, device)
-    fit_dir.mkdir(parents=True, exist_ok=False)
-    evaluation_dir.mkdir(parents=True, exist_ok=False)
+    fit_dir.mkdir(parents=True, exist_ok=True)
+    evaluation_dir.mkdir(parents=True, exist_ok=True)
     for name, value in [("latent_scaler", latent_scaler), ("residual_scaler", residual_scaler), ("ridge", selected_ridge)]:
         with (fit_dir / f"{name}.pkl").open("xb") as handle:
             pickle.dump(value, handle)
