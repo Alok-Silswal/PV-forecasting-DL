@@ -1,0 +1,151 @@
+{
+  "experiment": "end-to-end proposed_rvqc",
+  "run_number": 1,
+  "seed": 42,
+  "seed_formula": "config.RANDOM_SEED + run_number - 1",
+  "initialization": "from scratch; no pretrained weights",
+  "backbone_device": "cuda",
+  "rvqc_device": "cpu",
+  "cpu_threads": 1,
+  "configuration": {
+    "BATCH_SIZE": 256,
+    "NUM_EPOCHS": 100,
+    "EARLY_STOPPING_PATIENCE": 15,
+    "LEARNING_RATE": 0.001,
+    "WEIGHT_DECAY": 1e-05,
+    "GRADIENT_CLIP_VALUE": 1.0,
+    "SCHEDULER_MODE": "min",
+    "SCHEDULER_FACTOR": 0.5,
+    "SCHEDULER_PATIENCE": 5,
+    "SCHEDULER_MIN_LR": 1e-06,
+    "SHUFFLE_TRAIN": true,
+    "NUM_WORKERS": 0
+  },
+  "loss": "MSE on final normalized forecast; no pilot residual bias/scaling",
+  "features": [
+    "Weather_Temperature_Celsius",
+    "Weather_Relative_Humidity",
+    "Global_Horizontal_Radiation",
+    "Diffuse_Horizontal_Radiation",
+    "Radiation_Global_Tilted",
+    "Radiation_Diffuse_Tilted",
+    "Active_Power"
+  ],
+  "lookback": 24,
+  "outputs": 3,
+  "stride": 1,
+  "source_sha256": {
+    "models/proposed_rvqc/run_experiment.py": "6a29d60e00d3ee27d3df5da8b3f899e3c7431a0dca864ec9c92a0d4ef72e7a0c",
+    "models/proposed_rvqc/evaluate.py": "a000e2153fa964f7ddfeb7d8a462f166b3c0a5c1f30a1210500fb24e9298ef8f",
+    "models/proposed_rvqc/proposed_rvqc.py": "fd07b47f909889180248406822a18820172bea6c054cb1dbeca1e31fb927d882",
+    "models/proposed_rvqc/__init__.py": "70f075842677e558ff797dd3b46bc40bf80a510b86da3ae7175e7f6a393068d4",
+    "models/proposed_model.py": "b230581f6e1c71d4a8c7dfcf4ff83f565c652194662e2bed6ca86e2f872e2e86",
+    "models/residual_learning/quantum_residual_vqc.py": "b2e008d2879e2488fab11be846f282b04c52d6f9f9f1cec05ce15317e27b4f16",
+    "models/residual_learning/quantum_residual_reupload_vqc.py": "480db41e744f7300b32b8d5358d67e4a1bcbfca14b832b5851a17fe39026212e",
+    "training/trainer.py": "93ee96403af07d2c5d19ad7a96bb9707cfdee33b7799a9d25ae67230ca8aab88",
+    "configs/config.py": "e0f768a8effaf4d730fb54a2fca8cc4b2eb9c1d84a51a6daf13fcf784128ecf1",
+    "notebooks/Data_Preprocessing.ipynb": "4ed4b4f411c503b054e5d9b1c62f9036d55a661055b1d73c307abb49d9805ebb",
+    "experiments/residual_learning/extract_residual_dataset.py": "a47e43fbf952dee9f914a04dc7aa26309e4e6f7e8a1535fa12b7a154fc8a39f3",
+    "main.py": "ba2cf63abe9a435c7b9db3daaa76171c11e58ff12d3ad6380f02abc0d9bc3844",
+    "training/loss.py": "c52423766dc02c3db2e3d94f2772ef6e2bf4650e074ffa9746de30ad846dd15a",
+    "experiments/residual_learning/run_residual_audit.py": "6dea1d659f2b07a18f84cc5c530bfa2b6014cb648d54a32de21faddbc89e183b",
+    "artifacts/residual_learning/proposed/horizon_15/run_1/manifest.json": "8b7c45caa5bc8aef243125249c87410f1f7fd2cfa430ceb8a8485a6c7a6aa778",
+    "models/dcnn.py": "063ce2d76ea2af1459a81d0c871f7068b12b218df621966805846f635983fb1e",
+    "models/feature_attention.py": "5e46a6da8e4adf0fb4af1a797f04ed939a8d208a6160432cea40a6090beca86b",
+    "models/residual_bilstm.py": "93ae4774b71679a84d05ed4f5119646624af58297fcf87bd3f8161353b02aabd",
+    "models/temporal_attention.py": "77e90660f81bd592f219daf77b8f11f255ae490466e7602534a1f730a414a200",
+    "models/scalar_gated_fusion.py": "b7a80b2eb804162d143806f95bf2c23ee77ca4db921d91dce9c2c86c76cecbfc",
+    "models/mlp_head.py": "e4d7a02c519b4df4e905fca867da1c4fc7f9354cd6dd16d7e18d5f2110548590"
+  },
+  "software": {
+    "python": "3.12.13",
+    "torch": "2.13.0+cu130",
+    "pennylane": "0.45.1",
+    "sklearn": "1.9.0"
+  },
+  "hardware": "Tesla T4",
+  "smoke_test": true,
+  "benchmark_only": false,
+  "fitting_csv_sha256": "7d26ca0734fd4b62be5f097729d0834675d63318ea6481f3502bbcdd71cd354b",
+  "test_row_byte_offset": 119797305,
+  "csv_columns": [
+    "timestamp",
+    "Active_Power",
+    "Weather_Temperature_Celsius",
+    "Weather_Relative_Humidity",
+    "Global_Horizontal_Radiation",
+    "Diffuse_Horizontal_Radiation",
+    "Radiation_Global_Tilted",
+    "Radiation_Diffuse_Tilted"
+  ],
+  "feature_scaler": {
+    "mean_": [
+      21.32121364199132,
+      35.759676042422385,
+      265.9116992264983,
+      53.46196089162243,
+      289.38831633289294,
+      56.879555140385484,
+      48.63436094414469
+    ],
+    "scale_": [
+      10.297735204766703,
+      23.07478645135192,
+      365.052901418772,
+      89.58229374716824,
+      386.703999394538,
+      215.69526431533706,
+      65.73854637864127
+    ],
+    "var_": [
+      106.04335034749154,
+      532.4457697754941,
+      133263.62083426368,
+      8024.987353003938,
+      149539.98314773088,
+      46524.44704806311,
+      4321.556479976769
+    ],
+    "n_samples_seen_": 745702.0
+  },
+  "target_scaler": {
+    "mean_": [
+      48.63436094414469
+    ],
+    "scale_": [
+      65.73854637864127
+    ],
+    "var_": [
+      4321.556479976769
+    ],
+    "n_samples_seen_": 745702.0
+  },
+  "split_rows": {
+    "train": [
+      0,
+      745702
+    ],
+    "validation": [
+      745702,
+      905495
+    ],
+    "test": [
+      905495,
+      1065289
+    ]
+  },
+  "samples": {
+    "train": 745676,
+    "validation": 159767,
+    "test": 159768
+  },
+  "parameter_counts": {
+    "backbone": 70541,
+    "rvqc": {
+      "projection": 774,
+      "quantum": 24,
+      "readout": 21,
+      "total": 819
+    }
+  }
+}

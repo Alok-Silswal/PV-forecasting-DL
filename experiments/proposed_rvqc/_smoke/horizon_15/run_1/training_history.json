@@ -1,0 +1,109 @@
+{
+  "train_loss": [
+    1.1961710453033447
+  ],
+  "val_loss": [
+    0.9615564346313477
+  ],
+  "rmse": [
+    0.9805898705554695
+  ],
+  "mae": [
+    0.9191968441009521
+  ],
+  "mape": [
+    137.4769744873047
+  ],
+  "r2": [
+    0.11306911706924438
+  ],
+  "nrmse": [
+    0.3759840717182428
+  ],
+  "completion": {
+    "settings_sha256": "68cd6a59e9557d26560ab499d4d8a60029325e9c0b88a8f1b1036a0300a67f3e",
+    "run_number": 1,
+    "seed": 42,
+    "selected_epoch": 1,
+    "best_validation_loss": 0.9615564346313477,
+    "gradient_checks": {
+      "shapes": {
+        "fusion": [
+          8,
+          24,
+          128
+        ],
+        "pooled": [
+          8,
+          128
+        ],
+        "projection": [
+          8,
+          6
+        ],
+        "quantum": [
+          8,
+          6
+        ],
+        "correction": [
+          8,
+          3
+        ],
+        "final": [
+          8,
+          3
+        ]
+      },
+      "gradient_norms": {
+        "dcnn": 1.54111023619771,
+        "feature_attention": 0.44285544753074646,
+        "residual_bilstm": 0.5456301607191563,
+        "temporal_attention": 0.0023219712311401963,
+        "scalar_gated_fusion": 3.5134005546569824,
+        "mlp_head": 4.885115027427673,
+        "projection": 1.0834726095199585,
+        "readout": 3.8411279916763306
+      },
+      "input_shape": [
+        8,
+        24,
+        7
+      ],
+      "quantum_only_fusion_gradient_norm": 0.0038375365547835827,
+      "quantum_min_abs_gradient": 2.244720235466957e-05,
+      "quantum_parameters": 24,
+      "backbone_device": "cuda:0",
+      "rvqc_device": "cpu",
+      "mixed_device_verified": true,
+      "hook_prediction_identity_exact": true,
+      "live_transfer_gradients": true,
+      "loss": 1.193062663078308
+    },
+    "checkpoint_reload_exact": true,
+    "benchmark": {
+      "batch_size": 256,
+      "measured_batches_per_phase": 3,
+      "warmup_batches_excluded": 1,
+      "batch_seconds": {
+        "training": 0.09508613133327042,
+        "validation": 0.02901333166664699
+      },
+      "extrapolated_training_seconds": 276.9859005738167,
+      "extrapolated_validation_seconds": 18.13333229165437,
+      "extrapolated_epoch_seconds": 295.1192328654711,
+      "extrapolated_100_epoch_seconds": 29511.923286547106,
+      "extrapolated_16_epoch_seconds": 4721.907725847537,
+      "extrapolated_test_seconds": 18.13333229165437,
+      "note": "Actual joint-model batch timing; extrapolation excludes CSV loading/epoch I/O. Patience does not predict selected epoch: 16 is the earliest stopping epoch, not a forecast."
+    },
+    "training_files_sha256": {
+      "checkpoints/best_checkpoint.pt": "17498b8b5dde00d81c06fd5ed59247f2707f1cd187779e757a5e945d29b5f4fd"
+    },
+    "test_accessed": false,
+    "warnings": [
+      "Historical interpolation/timestamp gaps preserved. Original test has prior project evaluations.",
+      "Recorded historical checkpoints do not store their seeds; pairing uses project run convention."
+    ],
+    "runtime_seconds": 6.541366248000031
+  }
+}
