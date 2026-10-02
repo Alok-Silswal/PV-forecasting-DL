@@ -163,9 +163,17 @@ def recover_extraction(directory: Path, manifest: dict, repair: bool = False,
         settings_path = ROOT / "artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/settings.json"
     bias_path = settings_path.parent / "bias.npy"
     assessment_path = evaluation / "assessment_predictions.npz"
-    for path, key in ((csv_path, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
-        if sha256(path) != manifest[key]:
-            raise ValueError(f"Recovery source SHA256 differs: {path}")
+    if sha256(CHECKPOINT) != manifest["checkpoint_sha256"]:
+        raise ValueError(f"Recovery source SHA256 differs: {CHECKPOINT}")
+    current_csv_sha = sha256(csv_path)
+    csv_sha_differs = current_csv_sha != manifest["processed_csv_sha256"]
+    if csv_sha_differs:
+        if manifest["max_samples_per_partition"] is not None:
+            raise ValueError(f"Recovery source SHA256 differs: {csv_path}")
+        logging.warning(
+            "Processed CSV byte SHA differs from historical manifest; proceeding only with full "
+            "numerical/semantic recovery validation. Historical manifest will remain unchanged. "
+            "historical=%s current=%s", manifest["processed_csv_sha256"], current_csv_sha)
     if manifest["max_samples_per_partition"] is not None:
         # Smoke manifests need not have later-stage anchors: exact historical
         # archive hashes remain sufficient, without granting numerical fallback.
@@ -270,6 +278,10 @@ def recover_extraction(directory: Path, manifest: dict, repair: bool = False,
                     logging.info("NUMERICALLY RECOVERED %s; historical=%s current=%s; manifest unchanged",
                                  path, manifest["partitions"][name]["sha256"], sha256(path))
     logging.info("NUMERICALLY VALIDATED extraction replicas; historical manifest hashes unchanged: %s", directory)
+    if csv_sha_differs:
+        logging.info("Processed CSV accepted only through numerical/semantic validation, not byte identity; "
+                     "historical=%s current=%s; historical manifest retained unchanged",
+                     manifest["processed_csv_sha256"], current_csv_sha)
     _VALIDATED_RECOVERIES.add(signature())
 
 
