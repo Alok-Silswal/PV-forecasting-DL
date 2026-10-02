@@ -5,6 +5,7 @@ Run from project root: python -m models.proposed_rvqc.run_experiment --run-numbe
 
 import argparse
 import hashlib
+import io
 import json
 import logging
 import platform
@@ -27,12 +28,12 @@ from training.trainer import Trainer
 from experiments.residual_learning.extract_residual_dataset import (
     ROOT, FEATURES, TRAIN_END, EXPECTED_ROWS, LOOKBACK, OUTPUTS,
     resolve_processed_csv, scaler_stats, sha256, save_json,
-    RECOVERY_TARGET_ATOL, RECOVERY_TARGET_RMSE,
 )
-from experiments.residual_learning.run_residual_audit import forecast_metrics, deltas
 from models.proposed_rvqc import ProposedRVQC
 
 VAL_END = TRAIN_END + int(0.15 * EXPECTED_ROWS)
+TRAINING_ROOT = ROOT / "experiments/proposed_rvqc"
+EVALUATION_ROOT = ROOT / "evaluation/proposed_rvqc"
 
 
 def fingerprint(path: Path) -> str:
@@ -61,9 +62,14 @@ class WindowDataset(Dataset):
                 torch.from_numpy(self.targets[start + LOOKBACK:start + LOOKBACK + OUTPUTS].copy()))
 
 
-def load_fitting_data(csv_path: Path) -> tuple[WindowDataset, WindowDataset, StandardScaler, StandardScaler]:
+def load_fitting_data(csv_path: Path) -> tuple[WindowDataset, WindowDataset, StandardScaler, StandardScaler, dict]:
     """Read training/validation rows only; preserve the historical train-only scaling."""
-    frame = pd.read_csv(csv_path, nrows=VAL_END, parse_dates=["timestamp"])
+    # Bound the parser input so read-ahead cannot consume original test rows.
+    with csv_path.open("rb") as handle:
+        prefix = b"".join(handle.readline() for _ in range(VAL_END + 1))
+    frame = pd.read_csv(io.BytesIO(prefix), parse_dates=["timestamp"])
+    source = {"fitting_csv_sha256": hashlib.sha256(prefix).hexdigest(),
+              "test_row_byte_offset": len(prefix), "csv_columns": list(frame.columns)}
     validate_frame(frame, VAL_END)
     feature_scaler = StandardScaler().fit(frame[FEATURES].iloc[:TRAIN_END])
     target_scaler = StandardScaler().fit(frame.Active_Power.iloc[:TRAIN_END].to_numpy().reshape(-1, 1))
@@ -80,7 +86,7 @@ def load_fitting_data(csv_path: Path) -> tuple[WindowDataset, WindowDataset, Sta
     features = feature_scaler.transform(frame[FEATURES]).astype(np.float32)
     targets = target_scaler.transform(frame.Active_Power.to_numpy().reshape(-1, 1))[:, 0].astype(np.float32)
     return (WindowDataset(features[:TRAIN_END], targets[:TRAIN_END]),
-            WindowDataset(features[TRAIN_END:], targets[TRAIN_END:]), feature_scaler, target_scaler)
+            WindowDataset(features[TRAIN_END:], targets[TRAIN_END:]), feature_scaler, target_scaler, source)
 
 
 def validate_frame(frame: pd.DataFrame, expected_rows: int) -> None:
@@ -93,12 +99,11 @@ def validate_frame(frame: pd.DataFrame, expected_rows: int) -> None:
 
 
 def historical_snapshot() -> dict[Path, str]:
-    paths = [ROOT / "data/processed/DKASC_Preprocessed.csv"]
-    paths += [ROOT / name for name in ("main.py", "evaluation/evaluate.py", "evaluation/evaluator.py")]
-    for directory in ("models", "training", "configs", "notebooks", "experiments/proposed",
-                      "experiments/residual_learning", "artifacts/residual_learning", "evaluation/proposed",
-                      "evaluation/residual_learning"):
+    # Source checks must not read historical test data or prediction archives.
+    paths = [ROOT / name for name in ("main.py", "evaluation/evaluate.py", "evaluation/evaluator.py")]
+    for directory in ("models", "training", "configs", "notebooks", "experiments/residual_learning"):
         paths += [p for p in (ROOT / directory).rglob("*") if p.is_file()
+                  and p.suffix in (".py", ".ipynb")
                   and "__pycache__" not in p.parts and "proposed_rvqc" not in p.parts]
     return {p: sha256(p) for p in paths if p.is_file()}
 
@@ -229,89 +234,6 @@ def make_trainer(model: ProposedRVQC, train: WindowDataset, validation: WindowDa
                    config.GRADIENT_CLIP_VALUE, epochs)
 
 
-def evaluate_test(model: ProposedRVQC, csv_path: Path, feature_scaler: StandardScaler,
-                  target_scaler: StandardScaler, baseline_csv: Path, device: torch.device) -> tuple[dict, dict]:
-    """Only called after the selected joint checkpoint is persisted and loaded."""
-    frame = pd.read_csv(csv_path, skiprows=range(1, VAL_END+1), parse_dates=["timestamp"])
-    validate_frame(frame, EXPECTED_ROWS-VAL_END)
-    features = feature_scaler.transform(frame[FEATURES]).astype(np.float32)
-    targets = target_scaler.transform(frame.Active_Power.to_numpy().reshape(-1,1))[:,0].astype(np.float32)
-    dataset = WindowDataset(features, targets)
-    predictions, truth = [], []
-    model.eval()
-    with torch.no_grad():
-        for inputs, values in DataLoader(dataset, batch_size=config.BATCH_SIZE):
-            predictions.append(model(inputs.to(device)).cpu().numpy()); truth.append(values.numpy())
-    corrected = target_scaler.inverse_transform(np.concatenate(predictions).reshape(-1,1)).reshape(-1,3)
-    reconstructed_truth = target_scaler.inverse_transform(np.concatenate(truth).reshape(-1,1)).reshape(-1,3)
-    historical = pd.read_csv(baseline_csv)
-    if list(historical.columns) != ["Actual","Predicted"] or len(historical) != len(dataset)*3:
-        raise ValueError("Baseline CSV output/sample contract differs.")
-    saved_truth = historical.Actual.to_numpy().reshape(-1,3)
-    baseline = historical.Predicted.to_numpy().reshape(-1,3)
-    difference = reconstructed_truth.astype(np.float64) - saved_truth
-    if (not np.isfinite(difference).all() or np.abs(difference).max() > RECOVERY_TARGET_ATOL
-            or np.sqrt(np.mean(difference**2)) > RECOVERY_TARGET_RMSE):
-        raise ValueError("Final test targets do not align with authoritative baseline CSV.")
-    # Both architectures use the same authoritative ground truth for paired metrics.
-    metrics = {"baseline": forecast_metrics(saved_truth, baseline), "proposed_rvqc": forecast_metrics(saved_truth, corrected)}
-    delta = {scope: deltas(metrics["proposed_rvqc"][scope], metrics["baseline"][scope]) for scope in ("aggregate",)}
-    delta["per_output"] = {str(h): deltas(metrics["proposed_rvqc"]["per_output"][str(h)], metrics["baseline"]["per_output"][str(h)]) for h in range(3)}
-    indices = np.arange(len(dataset))
-    arrays = {"sample_index":indices, "processed_input_start_row":VAL_END+indices,
-              "y_true_original":saved_truth, "prediction_proposed_rvqc":corrected}
-    timestamps = frame.timestamp.to_numpy(dtype="datetime64[ns]")
-    for key, shift in (("input_start_timestamp",0),("input_end_timestamp",23),
-                       ("target_0_timestamp",24),("target_1_timestamp",25),("target_2_timestamp",26)):
-        arrays[key] = timestamps[indices+shift]
-    return {"metrics":metrics,"paired_deltas":delta,"test_samples":len(dataset),
-            "target_equivalence_max_abs":float(np.abs(difference).max()),
-            "target_equivalence_rmse":float(np.sqrt(np.mean(difference**2)))}, arrays
-
-
-def aggregate(evaluation_root: Path) -> None:
-    paths = [evaluation_root/f"run_{run}/summary.json" for run in range(1,config.NUM_RUNS+1)]
-    if not all(p.is_file() for p in paths):
-        return
-    records = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
-    cohort_settings = []
-    for run, record in enumerate(records, 1):
-        settings_path = ROOT/f'experiments/proposed_rvqc/horizon_15/run_{run}/settings.json'
-        if fingerprint(settings_path) != record['settings_sha256']:
-            raise ValueError(f"Run {run} settings changed before aggregation.")
-        settings = json.loads(settings_path.read_text(encoding='utf-8'))
-        if (record['run_number'] != run or record['seed'] != config.RANDOM_SEED+run-1
-                or settings['smoke_test'] or settings['benchmark_only']):
-            raise ValueError(f"Run {run} is not a valid full experimental replicate.")
-        cohort_settings.append(settings)
-    for key in ('configuration','source_sha256','processed_csv_sha256','features','lookback','outputs',
-                'stride','feature_scaler','target_scaler','split_rows','loss'):
-        if any(settings[key] != cohort_settings[0][key] for settings in cohort_settings[1:]):
-            raise ValueError(f"Five-run training/data protocols differ: {key}")
-    def stats(values: list[float]) -> dict:
-        return {"mean":float(np.mean(values)),"sample_sd":float(np.std(values,ddof=1)),
-                "median":float(np.median(values)),"minimum":float(np.min(values)),"maximum":float(np.max(values))}
-    result: dict[str,Any] = {"runs":config.NUM_RUNS,"summary_sha256":{str(i+1):fingerprint(p) for i,p in enumerate(paths)}}
-    for name in ("baseline","proposed_rvqc","paired_delta"):
-        result[name] = {}
-        for scope in ("aggregate","0","1","2"):
-            result[name][scope] = {}
-            for metric in ("rmse","mae","r2","nrmse"):
-                def value(record: dict, model: str) -> float:
-                    m = record['metrics'][model]
-                    return m['aggregate'][metric] if scope=='aggregate' else m['per_output'][scope][metric]
-                values = [(value(r,'proposed_rvqc')-value(r,'baseline')) if name=='paired_delta' else value(r,name) for r in records]
-                result[name][scope][metric] = stats(values)
-    result["runs_improved"] = {key:sum(r['paired_deltas']['aggregate'][key]['delta']<0 for r in records) for key in ('rmse','mae')}
-    result["percentage_improvement"] = {key:stats([r['paired_deltas']['aggregate'][key]['improvement_percent'] for r in records]) for key in ('rmse','mae')}
-    path=evaluation_root/'five_run_summary.json'
-    if path.exists():
-        if json.loads(path.read_text(encoding='utf-8'))!=result:
-            raise ValueError("Conflicting existing five-run summary.")
-    else:
-        save_json(path,result)
-
-
 def run(args: argparse.Namespace) -> None:
     if not 1 <= args.run_number <= config.NUM_RUNS:
         raise ValueError("Run number outside project NUM_RUNS.")
@@ -327,11 +249,7 @@ def run(args: argparse.Namespace) -> None:
         raise RuntimeError("CUDA requested but unavailable; cross-device verification cannot be claimed.")
     csv_path=resolve_processed_csv(args.processed_csv)
     seed=config.RANDOM_SEED+args.run_number-1
-    baseline_root=ROOT/f'evaluation/proposed/horizon_15/run_{args.run_number}/results'
-    baseline_csv=baseline_root/'predictions.csv'
-    for path in (baseline_csv,baseline_root/'evaluation_metrics.json'):
-        if not path.is_file(): raise FileNotFoundError(f"Required baseline reference missing: {path}")
-    sources=[Path(__file__),ROOT/'models/proposed_rvqc/proposed_rvqc.py',ROOT/'models/proposed_rvqc/__init__.py',ROOT/'models/proposed_model.py',
+    sources=[Path(__file__), ROOT/"models/proposed_rvqc/evaluate.py",ROOT/'models/proposed_rvqc/proposed_rvqc.py',ROOT/'models/proposed_rvqc/__init__.py',ROOT/'models/proposed_model.py',
              ROOT/'models/residual_learning/quantum_residual_vqc.py',ROOT/'models/residual_learning/quantum_residual_reupload_vqc.py',
              ROOT/'training/trainer.py',ROOT/'configs/config.py',ROOT/'notebooks/Data_Preprocessing.ipynb',
              ROOT/'experiments/residual_learning/extract_residual_dataset.py',ROOT/'main.py',
@@ -346,34 +264,38 @@ def run(args: argparse.Namespace) -> None:
               "loss":"MSE on final normalized forecast; no pilot residual bias/scaling",
               "features":FEATURES,"lookback":LOOKBACK,"outputs":OUTPUTS,"stride":config.STRIDE,
               "source_sha256":{str(p.relative_to(ROOT)):fingerprint(p) for p in sources},
-              "processed_csv_sha256":sha256(csv_path),"baseline_csv_sha256":fingerprint(baseline_csv),
-              "baseline_metrics_sha256":fingerprint(baseline_root/'evaluation_metrics.json'),
               "software":{"python":platform.python_version(),"torch":str(torch.__version__),"pennylane":qml.__version__,"sklearn":sklearn.__version__},
               "hardware":torch.cuda.get_device_name(device) if device.type=='cuda' else platform.processor(),
               "smoke_test":args.smoke_test,"benchmark_only":args.benchmark}
     suffix=Path(f'horizon_15/run_{args.run_number}')
     if args.smoke_test or args.benchmark: suffix=Path('_smoke' if args.smoke_test else '_benchmark')/suffix
-    destination=ROOT/'experiments/proposed_rvqc'/suffix
-    evaluation=ROOT/'evaluation/proposed_rvqc'/suffix
-    summary_path=evaluation/'summary.json'; settings_path=destination/'settings.json'
+    destination=TRAINING_ROOT/suffix
+    summary_path=destination/('benchmark.json' if args.benchmark else 'training_history.json')
+    settings_path=destination/'settings.json'
     if summary_path.exists():
         recorded=json.loads(settings_path.read_text(encoding='utf-8'))
         if any(recorded.get(key)!=value for key,value in settings.items()): raise ValueError("Completed run provenance/configuration conflicts.")
+        with csv_path.open("rb") as handle:
+            prefix = b"".join(handle.readline() for _ in range(VAL_END + 1))
+        if hashlib.sha256(prefix).hexdigest() != recorded['fitting_csv_sha256']:
+            raise ValueError("Completed training CSV prefix changed.")
         summary=json.loads(summary_path.read_text(encoding='utf-8'))
+        if not args.benchmark: summary=summary['completion']
         if summary['settings_sha256']!=fingerprint(settings_path):raise ValueError("Completed settings changed.")
-        for base,items in ((destination,summary.get('training_files_sha256',{})),(evaluation,summary.get('evaluation_files_sha256',{}))):
+        for base,items in ((destination,summary.get('training_files_sha256',{})),):
             for name,digest in items.items():
                 path=base/name
-                if path.exists() and fingerprint(path)!=digest:raise ValueError(f"Completed artifact changed: {path}")
+                if not path.is_file() or fingerprint(path)!=digest:raise ValueError(f"Completed artifact changed: {path}")
         logging.info('Completed run verified; no retraining or overwrite: %s',summary_path)
-        if not args.smoke_test and not args.benchmark:aggregate(evaluation.parent)
+        logging.info('Training complete; test accessed=False. Run models.proposed_rvqc.evaluate separately.')
         return
-    existing=[p for base in (destination,evaluation) if base.exists() for p in base.rglob('*') if p.is_file()]
+    existing=[p for base in (destination,) if base.exists() for p in base.rglob('*') if p.is_file()]
     if existing:raise FileExistsError(f"Partial run is not safely resumable; archive/explicitly clean before restarting: {existing}")
     protected=historical_snapshot(); started=time.perf_counter()
     try:
         torch.set_num_threads(args.cpu_threads); _set_seed(seed)
-        train,validation,feature_scaler,target_scaler=load_fitting_data(csv_path)
+        train,validation,feature_scaler,target_scaler,source=load_fitting_data(csv_path)
+        settings.update(source)
         model=ProposedRVQC().to(device)
         probe=next(iter(DataLoader(train,batch_size=8)))
         with torch.random.fork_rng(devices=[device.index or 0] if device.type=='cuda' else []):
@@ -384,7 +306,7 @@ def run(args: argparse.Namespace) -> None:
                         split_rows={'train':[0,TRAIN_END],'validation':[TRAIN_END,VAL_END],'test':[VAL_END,EXPECTED_ROWS]},
                         samples={'train':len(train),'validation':len(validation),'test':EXPECTED_ROWS-VAL_END-26},
                         parameter_counts={'backbone':sum(p.numel() for p in model.backbone.parameters()),'rvqc':model.rvqc.parameter_counts()})
-        destination.mkdir(parents=True,exist_ok=True); evaluation.mkdir(parents=True,exist_ok=True)
+        destination.mkdir(parents=True,exist_ok=True)
         if args.benchmark or args.smoke_test:
             report=benchmark(model,train,validation,device)
             logging.info('Actual model benchmark: %s',json.dumps(report))
@@ -393,13 +315,14 @@ def run(args: argparse.Namespace) -> None:
         if args.benchmark:
             save_json(settings_path,settings)
             save_json(summary_path,{'settings_sha256':fingerprint(settings_path),'gradient_checks':checks,'benchmark':report,'test_accessed':False})
+            logging.info('Benchmark complete; test accessed=False.')
             return
         if args.smoke_test:
             train=WindowDataset(train.features,train.targets,np.arange(2*config.BATCH_SIZE))
             validation=WindowDataset(validation.features,validation.targets,np.arange(config.BATCH_SIZE))
         save_json(settings_path,settings)
         trainer=make_trainer(model,train,validation,device,destination,1 if args.smoke_test else config.NUM_EPOCHS)
-        history=trainer.train(); save_json(destination/'training_history.json',history)
+        history=trainer.train()
         checkpoint=destination/'checkpoints/best_checkpoint.pt'
         state=torch.load(checkpoint,map_location='cpu',weights_only=True)
         restored=ProposedRVQC().to(device); restored.load_state_dict(state['model_state_dict'],strict=True);restored.eval()
@@ -408,18 +331,13 @@ def run(args: argparse.Namespace) -> None:
         summary={'settings_sha256':fingerprint(settings_path),'run_number':args.run_number,'seed':seed,
                  'selected_epoch':state['epoch']+1,'best_validation_loss':state['best_val_loss'],
                  'gradient_checks':checks,'checkpoint_reload_exact':True,'benchmark':report,
-                 'training_files_sha256':{'checkpoints/best_checkpoint.pt':sha256(checkpoint),'training_history.json':fingerprint(destination/'training_history.json')},
-                 'test_accessed':not args.smoke_test,
+                 'training_files_sha256':{'checkpoints/best_checkpoint.pt':sha256(checkpoint)},
+                 'test_accessed':False,
                  'warnings':['Historical interpolation/timestamp gaps preserved. Original test has prior project evaluations.',
                              'Recorded historical checkpoints do not store their seeds; pairing uses project run convention.']}
-        if not args.smoke_test:
-            result,arrays=evaluate_test(restored,csv_path,feature_scaler,target_scaler,baseline_csv,device)
-            summary.update(result)
-            with (evaluation/'predictions.npz').open('xb') as handle:np.savez_compressed(handle,**arrays)
-            summary['evaluation_files_sha256']={'predictions.npz':sha256(evaluation/'predictions.npz')}
         summary['runtime_seconds']=time.perf_counter()-started
-        save_json(summary_path,summary)
-        if not args.smoke_test:aggregate(evaluation.parent)
+        history['completion']=summary
+        save_json(summary_path,history)
         logging.info('Finished %s (test accessed=%s)',summary_path,summary['test_accessed'])
     finally:
         assert_protected(protected)
