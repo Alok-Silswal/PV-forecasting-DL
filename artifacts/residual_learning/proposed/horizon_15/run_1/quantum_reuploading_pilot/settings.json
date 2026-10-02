@@ -1,0 +1,87 @@
+{
+  "seed": 42,
+  "optimizer": "Adam",
+  "learning_rate": 0.001,
+  "batch_size": 128,
+  "maximum_epochs": 30,
+  "patience": 8,
+  "loss": "standardized centered-residual MSE",
+  "device": "cpu",
+  "cpu_threads": 1,
+  "backend": "default.qubit",
+  "interface": "torch",
+  "differentiation": "backprop",
+  "shots": null,
+  "pennylane_version": "0.45.1",
+  "encoding_applications": 2,
+  "parameter_counts": {
+    "projection": 774,
+    "quantum": 24,
+    "readout": 21,
+    "total": 819
+  },
+  "selected_epoch": 2,
+  "bias": [
+    0.4206202165383574,
+    0.28051004212807445,
+    0.27499252831092735
+  ],
+  "partitions": {
+    "train": {
+      "samples": 95860,
+      "first_sample_index": 0,
+      "last_sample_index": 95859,
+      "latent_shape": [
+        95860,
+        128
+      ],
+      "input_start": "2022-03-18T07:35:00.000000000",
+      "last_input_end": "2023-03-03T13:55:00.000000000",
+      "first_target": "2022-03-18T09:35:00.000000000",
+      "last_target": "2023-03-03T14:10:00.000000000",
+      "sha256": "3523a4ad619521d470067a7c0afed9080110348874e25af5645e63f5de9ea65b"
+    },
+    "tuning": {
+      "samples": 31927,
+      "first_sample_index": 95886,
+      "last_sample_index": 127812,
+      "latent_shape": [
+        31927,
+        128
+      ],
+      "input_start": "2023-03-03T14:15:00.000000000",
+      "last_input_end": "2023-06-28T07:35:00.000000000",
+      "first_target": "2023-03-03T16:15:00.000000000",
+      "last_target": "2023-06-28T07:50:00.000000000",
+      "sha256": "fe848ff77891a53f98e4df78fb8badcc5f81f20cef0dd50654df4c112c74c620"
+    },
+    "assessment": {
+      "samples": 31928,
+      "first_sample_index": 127839,
+      "last_sample_index": 159766,
+      "latent_shape": [
+        31928,
+        128
+      ],
+      "input_start": "2023-06-28T07:55:00.000000000",
+      "last_input_end": "2023-10-19T18:20:00.000000000",
+      "first_target": "2023-06-28T09:55:00.000000000",
+      "last_target": "2023-10-19T18:35:00.000000000",
+      "sha256": "d20008cc2dc439c106954618e0691e0cd512e9c79feb2c8b6382738ee09f86dc"
+    }
+  },
+  "source_sha256": {
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/manifest.json": "8b7c45caa5bc8aef243125249c87410f1f7fd2cfa430ceb8a8485a6c7a6aa778",
+    "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1/stage0_summary.json": "deac747518910715583832ca6af7625b246fdacd6c555f08b047838109c67c24",
+    "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1/stage0_5/stage0_5_summary.json": "a9c2de77d3a08e0cf84963a37dc19d15b68ba8a04a59c64b8a0dbd5ebf2bbc5b",
+    "/kaggle/working/PV-forecasting-DL/evaluation/residual_learning/proposed/horizon_15/run_1/quantum_pilot/quantum_pilot_summary.json": "8fc99919302fe8db057a45475c9cc430113b0bd9f416250cb8241f2dfbfa3b3e",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/bias.npy": "3ed58b98823dea69d0b907f36c4beb1a24f585b563064aa104ed7c956ef611a6",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/latent_scaler.pkl": "faca615598413e096859ac44301f5aeb6b57ac6ec93888f429b6d812a1de1657",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/centered_residual_scaler.pkl": "bbdf5bb36cb379fe0a7d61a7865e223fa9683854ca1c76f9aa92458d1719be71",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/train.npz": "bf412db0b8707f21b4bd1e44db301c5ec87529e7f9faa74e8ee70368b0b1905a",
+    "/kaggle/working/PV-forecasting-DL/artifacts/residual_learning/proposed/horizon_15/run_1/tuning.npz": "9a0d365e1ca337b527b52a9630a70c195bf6b43f3e369504c42da93d0063cf6b"
+  },
+  "scaling": "Stage-0.5 scalers; exact historical hashes or validated numerical recovery; verified against training only",
+  "historical_discrepancy": "Current full comparator artifacts were internally consistent and independently verified in Phase A. Earlier quoted values cannot be reproduced from available repository history; their provenance remains unresolved. They must not be used in further comparisons. No rerun explanation is claimed.",
+  "smoke_test": false
+}
