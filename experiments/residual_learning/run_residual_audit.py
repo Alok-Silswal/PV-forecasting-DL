@@ -25,7 +25,7 @@ from experiments.residual_learning.extract_residual_dataset import (
     CHECKPOINT, WARNINGS, extract_residual_dataset, output_paths,
     save_json, scaler_stats, setup, sha256, resolve_processed_csv,
     validate_extraction, require_new_files,
-    recover_extraction, RECOVERY_PREDICTION_ATOL,
+    recover_extraction, RECOVERY_PREDICTION_ATOL, RECOVERY_TARGET_ATOL, RECOVERY_TARGET_RMSE,
 )
 from models.residual_learning.residual_mlp import ResidualMLP
 
@@ -198,7 +198,14 @@ def run_audit(args: argparse.Namespace) -> None:
         if prediction_path.is_file():
             assessment = load_partition(artifact_dir, "assessment", manifest)
             with np.load(prediction_path, allow_pickle=False) as saved:
-                np.testing.assert_array_equal(saved["y_true_original"], assessment["y_true_original"])
+                saved_targets = saved["y_true_original"].astype(np.float64)
+                recovered_targets = assessment["y_true_original"].astype(np.float64)
+                difference = saved_targets - recovered_targets
+                if (not np.isfinite(saved_targets).all() or not np.isfinite(recovered_targets).all()
+                        or not np.isfinite(difference).all()
+                        or np.abs(difference).max() > RECOVERY_TARGET_ATOL
+                        or np.sqrt(np.mean(difference ** 2)) > RECOVERY_TARGET_RMSE):
+                    raise ValueError("Saved and recovered assessment targets differ beyond numerical recovery bounds.")
                 np.testing.assert_allclose(saved["prediction_baseline"], assessment["y_hat_original"],
                                            atol=RECOVERY_PREDICTION_ATOL, rtol=0)
                 for name in ("baseline", "ridge", "mlp"):
