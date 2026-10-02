@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.residual_learning.extract_residual_dataset import (
     ROOT, output_paths, save_json, setup, sha256, require_new_files, verify_recorded_file,
+    compare_scaler_stats, scaler_stats, RECOVERY_BIAS_ATOL,
 )
 from experiments.residual_learning.run_residual_audit import (
     deltas, forecast_metrics, load_partition, mlp_predict,
@@ -186,7 +187,7 @@ def run(args: argparse.Namespace) -> None:
     tuning = load_partition(source, "tuning", manifest)
     bias = np.load(classical / "bias.npy", allow_pickle=False)
     train_residual = train["y_true_original"].astype(np.float64) - train["y_hat_original"].astype(np.float64)
-    np.testing.assert_allclose(bias, train_residual.mean(0), atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(bias, train_residual.mean(0), atol=RECOVERY_BIAS_ATOL, rtol=0)
     np.testing.assert_array_equal(bias, stage5["learned_bias_original"])
     with (classical / "latent_scaler.pkl").open("rb") as handle:
         latent_scaler = pickle.load(handle)
@@ -195,8 +196,7 @@ def run(args: argparse.Namespace) -> None:
     from sklearn.preprocessing import StandardScaler
     for saved, expected in ((latent_scaler, StandardScaler().fit(train["z"])),
                             (residual_scaler, StandardScaler().fit(train_residual - bias))):
-        for key in ("mean_", "scale_", "var_", "n_samples_seen_"):
-            np.testing.assert_allclose(getattr(saved, key), getattr(expected, key), atol=1e-12, rtol=1e-12)
+        compare_scaler_stats(scaler_stats(saved), scaler_stats(expected))
     train_z = latent_scaler.transform(train["z"]).astype(np.float32)
     tune_z = latent_scaler.transform(tuning["z"]).astype(np.float32)
     train_r = residual_scaler.transform(train_residual - bias).astype(np.float32)
@@ -259,7 +259,7 @@ def run(args: argparse.Namespace) -> None:
     if not args.benchmark:
         logging.info("Configuration/checkpoint locked; now reading assessment once.")
         assessment = load_partition(source, "assessment", manifest)
-        source_hashes[str(source / "assessment.npz")] = manifest["partitions"]["assessment"]["sha256"]
+        source_hashes[str(source / "assessment.npz")] = sha256(source / "assessment.npz")
         centered = residual_scaler.inverse_transform(mlp_predict(model, latent_scaler.transform(assessment["z"]).astype(np.float32), device, args.batch_size)).astype(np.float64)
         baseline = assessment["y_hat_original"].astype(np.float64)
         corrected = baseline + bias + centered

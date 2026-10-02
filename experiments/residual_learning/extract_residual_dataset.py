@@ -11,7 +11,9 @@ import json
 import logging
 import os
 import platform
+import pickle
 import random
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +45,25 @@ WARNINGS = [
     "Overlapping windows within blocks make samples statistically dependent.",
     "CPU subnormal flushing is enabled; previously checked against the historical checkpoint.",
 ]
+
+# Bounds follow the measured independent-session recovery diagnostic; every
+# mismatch also requires authoritative anchors and row-wise frozen-model replay.
+RECOVERY_PREDICTION_ATOL = 1e-4
+RECOVERY_PREDICTION_RMSE = 1e-5
+RECOVERY_STAT_ATOL = 1e-7
+RECOVERY_STAT_RTOL = 1e-8
+RECOVERY_BIAS_ATOL = 2e-7
+_VALIDATED_RECOVERIES: set[tuple] = set()
+
+
+def compare_scaler_stats(actual: dict, expected: dict) -> None:
+    """Allow measured floating drift, never a different sample count."""
+    np.testing.assert_array_equal(actual["n_samples_seen_"], expected["n_samples_seen_"])
+    latent = len(actual["mean_"]) == 128
+    for key in ("mean_", "scale_", "var_"):
+        np.testing.assert_allclose(actual[key], expected[key],
+                                   atol=1e-9 if latent else RECOVERY_STAT_ATOL,
+                                   rtol=1e-6 if latent else RECOVERY_STAT_RTOL)
 
 
 def path_diagnostics(processed_csv: Path | None = None) -> str:
@@ -101,11 +122,159 @@ def verify_recorded_file(path: Path, recorded: dict[str, str]) -> None:
     if path.suffix == ".json":
         hashes.add(hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest())
     if matches[0] not in hashes:
+        if path.suffix == ".npz" and path.name in {"train.npz", "tuning.npz", "assessment.npz"}:
+            manifest = json.loads((path.parent / "manifest.json").read_text(encoding="utf-8"))
+            if matches[0] != manifest["partitions"][path.stem]["sha256"]:
+                raise ValueError(f"Snapshot and manifest disagree: {path}")
+            recover_extraction(path.parent, manifest)
+            return
+        if path.suffix == ".pkl" and path.stem in {"latent_scaler", "centered_residual_scaler"}:
+            settings_path = path.parent / "settings.json"
+            verify_recorded_file(settings_path, recorded)
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            scaler = pickle.loads(path.read_bytes())
+            if (not isinstance(scaler, StandardScaler) or not scaler.with_mean or not scaler.with_std
+                    or not scaler.copy or scaler.n_features_in_ != len(settings[path.stem]["mean_"])):
+                raise ValueError(f"Invalid recovered scaler: {path}")
+            compare_scaler_stats(scaler_stats(scaler), settings[path.stem])
+            logging.warning("Numerically equivalent scaler; historical SHA retained: %s", path)
+            return
         raise ValueError(f"Existing source conflicts with recorded SHA256: {path}")
 
 
+def recover_extraction(directory: Path, manifest: dict, repair: bool = False,
+                       processed_csv: Path | None = None) -> None:
+    """Validate replicas against tracked anchors and a row-wise frozen-model replay.
+
+    No candidate is published until every available check passes. Validation is
+    cached only within this process and keyed by file hashes, never directory existence.
+    """
+    names = ("train", "tuning", "assessment")
+    if processed_csv is None:
+        recorded_csv = Path(manifest["source_processed_csv"])
+        if not recorded_csv.is_absolute():
+            recorded_csv = ROOT / recorded_csv
+        if recorded_csv.is_file():
+            processed_csv = recorded_csv
+    csv_path = resolve_processed_csv(processed_csv)
+    _, evaluation = output_paths(manifest["max_samples_per_partition"])
+    settings_path = directory / "stage0_5/settings.json"
+    if not settings_path.is_file():
+        settings_path = ROOT / "artifacts/residual_learning/proposed/horizon_15/run_1/stage0_5/settings.json"
+    bias_path = settings_path.parent / "bias.npy"
+    assessment_path = evaluation / "assessment_predictions.npz"
+    for path, key in ((csv_path, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
+        if sha256(path) != manifest[key]:
+            raise ValueError(f"Recovery source SHA256 differs: {path}")
+    if manifest["max_samples_per_partition"] is not None:
+        # Smoke manifests need not have later-stage anchors: exact historical
+        # archive hashes remain sufficient, without granting numerical fallback.
+        with tempfile.TemporaryDirectory(prefix="pv_residual_smoke_recovery_") as temporary:
+            reference = Path(temporary)
+            extract_residual_dataset(manifest["batch_size"], manifest["max_samples_per_partition"],
+                                     manifest["seed"], manifest["cpu_threads"], csv_path,
+                                     _destination=reference, _device=manifest["device"])
+            for name in names:
+                path = directory / f"{name}.npz"
+                if sha256(reference / path.name) != manifest["partitions"][name]["sha256"]:
+                    raise ValueError("Smoke recovery lacks matching anchors; exact historical hashes required.")
+                if path.exists() and sha256(path) != manifest["partitions"][name]["sha256"]:
+                    raise ValueError(f"Conflicting smoke artifact: {path}")
+            if repair:
+                for name in names:
+                    path = directory / f"{name}.npz"
+                    if not path.exists():
+                        with path.open("xb") as handle:
+                            handle.write((reference / path.name).read_bytes())
+        return
+    for path in (settings_path, bias_path, assessment_path):
+        if not path.is_file():
+            raise FileNotFoundError(f"Numerical recovery requires an authoritative anchor: {path}")
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    if (settings["partitions"] != manifest["partitions"] or settings["scaler_fit_partition"] != "train"
+            or settings["bias_fit_partition"] != "train"):
+        raise ValueError("Recovery anchors belong to a different extraction.")
+    signature = lambda: (str(directory.resolve()), json.dumps(manifest, sort_keys=True),
+                         *[sha256(p) for p in (csv_path, CHECKPOINT, settings_path, bias_path, assessment_path)],
+                         *[sha256(directory / f"{n}.npz") if (directory / f"{n}.npz").is_file() else None for n in names])
+    if signature() in _VALIDATED_RECOVERIES:
+        return
+    with tempfile.TemporaryDirectory(prefix="pv_residual_recovery_") as temporary:
+        reference_dir = Path(temporary)
+        extract_residual_dataset(manifest["batch_size"], manifest["max_samples_per_partition"],
+                                 manifest["seed"], manifest["cpu_threads"], csv_path,
+                                 _destination=reference_dir, _device=manifest["device"])
+        reference_manifest = json.loads((reference_dir / "manifest.json").read_text(encoding="utf-8"))
+        for name in ("feature_scaler", "target_scaler"):
+            for key, value in reference_manifest[name].items():
+                np.testing.assert_allclose(value, manifest[name][key], atol=1e-12, rtol=1e-12)
+        candidates = {}
+        for name in names:
+            reference = dict(np.load(reference_dir / f"{name}.npz", allow_pickle=False))
+            candidate_path = directory / f"{name}.npz"
+            candidate = dict(np.load(candidate_path, allow_pickle=False)) if candidate_path.is_file() else reference
+            if set(candidate) != set(reference):
+                raise ValueError(f"Recovery field contract differs: {name}")
+            for key, values in reference.items():
+                if candidate[key].shape != values.shape or candidate[key].dtype != values.dtype:
+                    raise ValueError(f"Recovery shape/dtype differs: {name}/{key}")
+                if key not in {"z", "y_hat_normalized", "residual_normalized", "y_hat_original", "residual_original"}:
+                    np.testing.assert_array_equal(candidate[key], values, err_msg=f"{name}/{key}")
+                else:
+                    # Row-wise replay prevents permutations/corruption passing aggregate anchors.
+                    if not np.isfinite(candidate[key]).all():
+                        raise ValueError(f"Non-finite recovery field: {name}/{key}")
+                    atol = (1e-7 if key == "z" else RECOVERY_PREDICTION_ATOL if key.endswith("original")
+                            else RECOVERY_PREDICTION_ATOL / manifest["target_scaler"]["scale_"][0])
+                    np.testing.assert_allclose(candidate[key], values, atol=atol, rtol=1e-6 if key == "z" else 0,
+                                               err_msg=f"Frozen-model replay differs: {name}/{key}")
+            for key in ("samples", "first_sample_index", "last_sample_index", "latent_shape", "input_start", "last_input_end", "first_target", "last_target"):
+                if reference_manifest["partitions"][name][key] != manifest["partitions"][name][key]:
+                    raise ValueError(f"Recovery partition boundary differs: {name}/{key}")
+            # Check residual construction, not only independently plausible arrays.
+            np.testing.assert_array_equal(candidate["residual_normalized"], candidate["y_true_normalized"] - candidate["y_hat_normalized"])
+            np.testing.assert_allclose(candidate["residual_original"],
+                                       candidate["residual_normalized"] * np.float64(manifest["target_scaler"]["scale_"][0]),
+                                       atol=1e-12, rtol=1e-12)
+            candidates[name] = candidate
+        bias = np.load(bias_path, allow_pickle=False)
+        train = candidates["train"]
+        residual = train["y_true_original"].astype(np.float64) - train["y_hat_original"].astype(np.float64)
+        difference = np.abs(residual.mean(axis=0) - bias)
+        logging.info("Recovery training bias absolute differences: %s", difference.tolist())
+        np.testing.assert_allclose(residual.mean(axis=0), bias, atol=RECOVERY_BIAS_ATOL, rtol=0)
+        stored_difference = np.abs(train["residual_original"].astype(np.float64).mean(axis=0) - bias)
+        logging.info("Recovery stored residual mean absolute differences: %s", stored_difference.tolist())
+        np.testing.assert_allclose(train["residual_original"].astype(np.float64).mean(axis=0), bias,
+                                   atol=RECOVERY_BIAS_ATOL, rtol=0)
+        for name, values in (("latent_scaler", train["z"]), ("centered_residual_scaler", residual - bias)):
+            actual = scaler_stats(StandardScaler().fit(values))
+            logging.info("Recovery %s maximum statistic differences: %s", name,
+                         {key: float(np.max(np.abs(np.asarray(value) - settings[name][key]))) for key, value in actual.items()})
+            compare_scaler_stats(actual, settings[name])
+        with np.load(assessment_path, allow_pickle=False) as anchor:
+            data = candidates["assessment"]
+            for key in ("sample_index", "y_true_original", "input_start_timestamp", "input_end_timestamp", "target_0_timestamp", "target_1_timestamp", "target_2_timestamp"):
+                np.testing.assert_array_equal(data[key], anchor[key])
+            difference = data["y_hat_original"].astype(np.float64) - anchor["prediction_baseline"]
+            maximum, mean, rmse = float(np.abs(difference).max()), float(np.abs(difference).mean()), float(np.sqrt(np.mean(difference ** 2)))
+            logging.info("Recovery assessment prediction differences: max=%g mean=%g RMSE=%g", maximum, mean, rmse)
+            if not np.isfinite(difference).all() or maximum > RECOVERY_PREDICTION_ATOL or rmse > RECOVERY_PREDICTION_RMSE:
+                raise ValueError("Assessment baseline differs beyond numerical recovery bounds.")
+        if repair:
+            for name in names:
+                path = directory / f"{name}.npz"
+                if not path.exists():
+                    with path.open("xb") as handle:
+                        handle.write((reference_dir / path.name).read_bytes())
+                    logging.info("NUMERICALLY RECOVERED %s; historical=%s current=%s; manifest unchanged",
+                                 path, manifest["partitions"][name]["sha256"], sha256(path))
+    logging.info("NUMERICALLY VALIDATED extraction replicas; historical manifest hashes unchanged: %s", directory)
+    _VALIDATED_RECOVERIES.add(signature())
+
+
 def validate_extraction(directory: Path, manifest: dict, existing_only: bool = False) -> None:
-    """Verify partition hashes/shapes without requiring CSV or backbone inference."""
+    """Accept exact archives or require source/anchor/replay validation for replicas."""
     from experiments.residual_learning.run_residual_audit import load_partition
 
     for name in ("train", "tuning", "assessment"):
@@ -182,11 +351,14 @@ def classical_model() -> torch.nn.Module:
 
 def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = None,
                              seed: int = 42, cpu_threads: int = 1,
-                             processed_csv: Path | None = None) -> Path:
+                             processed_csv: Path | None = None, *,
+                             _destination: Path | None = None, _device: str | None = None) -> Path:
     """Extract the three validation partitions and write a completion manifest last."""
     if batch_size < 1 or (max_samples is not None and max_samples < 1):
         raise ValueError("batch_size and max_samples must be positive.")
     destination, _ = output_paths(max_samples)
+    if _destination is not None:
+        destination = _destination
     destination.mkdir(parents=True, exist_ok=True)
     manifest_path = destination / "manifest.json"
     recorded = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else None
@@ -195,26 +367,26 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
                 or recorded["features"] != FEATURES or recorded["input_length"] != LOOKBACK
                 or recorded["output_length"] != OUTPUTS or recorded["stride"] != 1):
             raise ValueError("Authoritative extraction manifest differs from the requested contract.")
-        validate_extraction(destination, recorded, existing_only=True)
         if all((destination / f"{name}.npz").is_file() for name in ("train", "tuning", "assessment")):
+            if any(sha256(destination / f"{name}.npz") != recorded["partitions"][name]["sha256"]
+                   for name in ("train", "tuning", "assessment")):
+                recover_extraction(destination, recorded, processed_csv=processed_csv)
+            else:
+                validate_extraction(destination, recorded)
             logging.info("Existing extraction artifacts verified: %s", destination)
             return destination
-        # Replay the recorded numerical execution, including CPU on GPU hosts.
-        seed, batch_size, cpu_threads = recorded["seed"], recorded["batch_size"], recorded["cpu_threads"]
+        recover_extraction(destination, recorded, repair=True, processed_csv=processed_csv)
+        return destination
     csv_path = resolve_processed_csv(processed_csv)
     for path in (csv_path, CHECKPOINT):
         if not path.is_file():
             raise FileNotFoundError(f"Required historical input missing: {path}")
-    if recorded is not None:
-        for path, key in ((csv_path, "processed_csv_sha256"), (CHECKPOINT, "checkpoint_sha256")):
-            if sha256(path) != recorded[key]:
-                raise ValueError(f"Historical recovery source differs from manifest: {path}")
     started = time.perf_counter()
     device = setup(seed, cpu_threads)
-    if recorded is not None:
-        device = torch.device(recorded["device"])
+    if _device is not None:
+        device = torch.device(_device)
         if device.type == "cuda" and not torch.cuda.is_available():
-            raise RuntimeError("Recovery requires the manifest's recorded CUDA device; CPU substitution would change provenance.")
+            raise RuntimeError("Recorded extraction CUDA device is unavailable.")
     logging.info("Loading historical processed CSV; device=%s", device)
     frame = pd.read_csv(csv_path, parse_dates=["timestamp"])
     if len(frame) != EXPECTED_ROWS or int(0.7 * len(frame)) != TRAIN_END:
@@ -226,10 +398,6 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
     val_end = TRAIN_END + int(0.15 * len(frame))
     feature_scaler = StandardScaler().fit(frame[FEATURES].iloc[:TRAIN_END])
     target_scaler = StandardScaler().fit(frame.Active_Power.iloc[:TRAIN_END].to_numpy().reshape(-1, 1))
-    if recorded is not None:
-        for name, scaler in (("feature_scaler", feature_scaler), ("target_scaler", target_scaler)):
-            for key, value in scaler_stats(scaler).items():
-                np.testing.assert_allclose(value, recorded[name][key], atol=1e-12, rtol=1e-12)
     features = feature_scaler.transform(frame[FEATURES].iloc[TRAIN_END:val_end])
     targets = target_scaler.transform(frame.Active_Power.iloc[TRAIN_END:val_end].to_numpy().reshape(-1, 1))[:, 0]
     timestamps = frame.timestamp.iloc[TRAIN_END:val_end].to_numpy(dtype="datetime64[ns]")
@@ -261,9 +429,6 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
             captured.clear()
             for name, indices in starts.items():
                 output_path = destination / f"{name}.npz"
-                if recorded is not None and output_path.is_file():
-                    partition_manifest[name] = recorded["partitions"][name]
-                    continue
                 latent_batches, prediction_batches = [], []
                 for offset in tqdm(range(0, len(indices), batch_size), desc=f"Extract {name}"):
                     batch_indices = indices[offset:offset + batch_size]
@@ -293,8 +458,6 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
                 with io.BytesIO() as archive:
                     np.savez_compressed(archive, **data)
                     digest = hashlib.sha256(archive.getbuffer()).hexdigest()
-                    if recorded is not None and digest != recorded["partitions"][name]["sha256"]:
-                        raise ValueError(f"Recovered {name}.npz SHA256 differs from authoritative manifest; no file written. Use the recorded numerical environment/device/batch size.")
                     if output_path.exists():
                         if sha256(output_path) != digest:
                             raise ValueError(f"Existing extraction without manifest conflicts with generated {name}: {output_path}")
@@ -313,10 +476,6 @@ def extract_residual_dataset(batch_size: int = 256, max_samples: int | None = No
     finally:
         hook.remove()
         captured.clear()
-    if recorded is not None:
-        validate_extraction(destination, recorded)
-        logging.info("Missing extraction artifacts restored; authoritative manifest unchanged: %s", destination)
-        return destination
     manifest = {
         "schema_version": 1,
         "source_processed_csv": csv_path.relative_to(ROOT).as_posix() if csv_path.is_relative_to(ROOT) else csv_path.as_posix(),

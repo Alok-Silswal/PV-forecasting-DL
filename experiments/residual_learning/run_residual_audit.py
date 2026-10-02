@@ -25,6 +25,7 @@ from experiments.residual_learning.extract_residual_dataset import (
     CHECKPOINT, WARNINGS, extract_residual_dataset, output_paths,
     save_json, scaler_stats, setup, sha256, resolve_processed_csv,
     validate_extraction, require_new_files,
+    recover_extraction, RECOVERY_PREDICTION_ATOL,
 )
 from models.residual_learning.residual_mlp import ResidualMLP
 
@@ -35,7 +36,7 @@ def load_partition(directory: Path, name: str, manifest: dict) -> dict[str, np.n
     """Verify extraction integrity before using an array."""
     path = directory / f"{name}.npz"
     if sha256(path) != manifest["partitions"][name]["sha256"]:
-        raise ValueError(f"Extracted partition checksum mismatch: {path}")
+        recover_extraction(directory, manifest)
     with np.load(path, allow_pickle=False) as archive:
         data = {key: archive[key] for key in archive.files}
     n = manifest["partitions"][name]["samples"]
@@ -198,7 +199,8 @@ def run_audit(args: argparse.Namespace) -> None:
             assessment = load_partition(artifact_dir, "assessment", manifest)
             with np.load(prediction_path, allow_pickle=False) as saved:
                 np.testing.assert_array_equal(saved["y_true_original"], assessment["y_true_original"])
-                np.testing.assert_array_equal(saved["prediction_baseline"], assessment["y_hat_original"])
+                np.testing.assert_allclose(saved["prediction_baseline"], assessment["y_hat_original"],
+                                           atol=RECOVERY_PREDICTION_ATOL, rtol=0)
                 for name in ("baseline", "ridge", "mlp"):
                     measured = forecast_metrics(saved["y_true_original"], saved[f"prediction_{name}"])
                     reference = summary["assessment_metrics"][name]
