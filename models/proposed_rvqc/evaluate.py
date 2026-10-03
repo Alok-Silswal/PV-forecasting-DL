@@ -4,9 +4,7 @@ import argparse
 import io
 import json
 import logging
-import time
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -16,15 +14,18 @@ from torch.utils.data import DataLoader
 
 from configs import config
 from evaluation.evaluator import Evaluator
+from evaluation.plots import EvaluationPlotter
+from evaluation.evaluate import _save_metrics, _save_predictions
+from training.metrics import compute_metrics
 from experiments.residual_learning.extract_residual_dataset import (
     RECOVERY_TARGET_ATOL, RECOVERY_TARGET_RMSE,
 )
-from experiments.residual_learning.run_residual_audit import forecast_metrics, deltas
+from experiments.residual_learning.run_residual_audit import forecast_metrics
 from models.proposed_rvqc import ProposedRVQC
 from . import run_experiment as training
 from .run_experiment import (
-    ROOT, FEATURES, TRAIN_END, VAL_END, EXPECTED_ROWS, WindowDataset,
-    validate_frame, fingerprint, sha256, save_json, resolve_processed_csv,
+    ROOT, FEATURES, VAL_END, EXPECTED_ROWS, WindowDataset,
+    validate_frame, fingerprint, sha256, resolve_processed_csv,
 )
 
 
@@ -59,55 +60,67 @@ def load_evaluation_frame(csv_path: Path, settings: dict, smoke: bool) -> pd.Dat
     return frame
 
 
-def aggregate(evaluation_root: Path) -> None:
-    paths = [evaluation_root/f"run_{run}/summary.json" for run in range(1,config.NUM_RUNS+1)]
-    if not all(p.is_file() for p in paths):
-        return
-    records = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
-    cohort_settings = []
-    for run, record in enumerate(records, 1):
-        settings_path = training.TRAINING_ROOT/f'horizon_15/run_{run}/settings.json'
-        if fingerprint(settings_path) != record['settings_sha256']:
-            raise ValueError(f"Run {run} settings changed before aggregation.")
-        settings = json.loads(settings_path.read_text(encoding='utf-8'))
-        if (record['run_number'] != run or record['seed'] != config.RANDOM_SEED+run-1
-                or settings['smoke_test'] or settings['benchmark_only']):
-            raise ValueError(f"Run {run} is not a valid full experimental replicate.")
-        cohort_settings.append(settings)
-    for key in ('configuration','source_sha256','fitting_csv_sha256','features','lookback','outputs',
-                'stride','feature_scaler','target_scaler','split_rows','loss'):
-        if any(settings[key] != cohort_settings[0][key] for settings in cohort_settings[1:]):
-            raise ValueError(f"Five-run training/data protocols differ: {key}")
-    def stats(values: list[float]) -> dict:
-        return {"mean":float(np.mean(values)),"sample_sd":float(np.std(values,ddof=1)),
-                "median":float(np.median(values)),"minimum":float(np.min(values)),"maximum":float(np.max(values))}
-    result: dict[str,Any] = {"runs":config.NUM_RUNS,"summary_sha256":{str(i+1):fingerprint(p) for i,p in enumerate(paths)}}
-    for name in ("baseline","proposed_rvqc","paired_delta"):
-        result[name] = {}
-        for scope in ("aggregate","0","1","2"):
-            result[name][scope] = {}
-            for metric in ("rmse","mae","r2","nrmse"):
-                def value(record: dict, model: str) -> float:
-                    m = record['metrics'][model]
-                    return m['aggregate'][metric] if scope=='aggregate' else m['per_output'][scope][metric]
-                values = [(value(r,'proposed_rvqc')-value(r,'baseline')) if name=='paired_delta' else value(r,name) for r in records]
-                result[name][scope][metric] = stats(values)
-    result["runs_improved"] = {key:sum(r['paired_deltas']['aggregate'][key]['delta']<0 for r in records) for key in ('rmse','mae')}
-    result["percentage_improvement"] = {key:stats([r['paired_deltas']['aggregate'][key]['improvement_percent'] for r in records]) for key in ('rmse','mae')}
-    path=evaluation_root/'five_run_summary.json'
-    if path.exists():
-        if json.loads(path.read_text(encoding='utf-8'))!=result:
-            raise ValueError("Conflicting existing five-run summary.")
-    else:
-        save_json(path,result)
+def write_results(output: Path, metrics: dict, truth: np.ndarray, predictions: np.ndarray) -> None:
+    """Write standard results and plots, refusing existing outputs."""
+    metrics = dict(metrics)
+    metrics["mape"] = compute_metrics(predictions, truth)["mape"]
+    metrics = {key: metrics[key] for key in ("rmse", "mae", "mape", "r2", "nrmse")}
+    if (output / "results").exists() or (output / "plots").exists():
+        raise FileExistsError(f"Standard evaluation outputs already exist: {output}")
+    _save_predictions(output / "results/predictions.csv", predictions.reshape(-1), truth.reshape(-1))
+    saved = pd.read_csv(output / "results/predictions.csv", float_precision="round_trip")
+    np.testing.assert_array_equal(saved.Actual.to_numpy(), truth.reshape(-1))
+    np.testing.assert_array_equal(saved.Predicted.to_numpy(), predictions.reshape(-1))
+    _save_metrics(output / "results/evaluation_metrics.json", metrics)
+    if json.loads((output / "results/evaluation_metrics.json").read_text()) != metrics:
+        raise RuntimeError("Saved evaluation metrics differ.")
+    plotter = EvaluationPlotter(output / "plots", config.MAX_PLOT_SAMPLES)
+    plotter.plot_predictions(predictions.reshape(-1), truth.reshape(-1))
+    plotter.plot_residuals(predictions.reshape(-1), truth.reshape(-1))
+    plotter.plot_prediction_scatter(predictions.reshape(-1), truth.reshape(-1))
 
 
+def format_existing(output: Path) -> None:
+    """Convert saved results only; never load a checkpoint or access the dataset."""
+    summary_path = output / "summary.json"
+    predictions_path = output / "predictions.npz"
+    if not summary_path.is_file() or not predictions_path.is_file():
+        raise FileNotFoundError(f"Format-only conversion requires existing summary.json and predictions.npz in {output}")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if sha256(predictions_path) != summary["predictions_sha256"]:
+        raise ValueError("Saved prediction archive hash differs from the evaluation record.")
+    with np.load(predictions_path, allow_pickle=False) as arrays:
+        truth = arrays["y_true_original"]
+        predictions = arrays["prediction_proposed_rvqc"]
+        verified = forecast_metrics(truth, predictions)
+        for scope in ("aggregate", "per_output"):
+            if scope == "aggregate":
+                pairs = [(verified[scope], summary["metrics"]["proposed_rvqc"][scope])]
+            else:
+                pairs = [(verified[scope][str(h)], summary["metrics"]["proposed_rvqc"][scope][str(h)]) for h in range(3)]
+            for actual, recorded in pairs:
+                for key in actual:
+                    np.testing.assert_allclose(actual[key], recorded[key], rtol=1e-12, atol=1e-12)
+        write_results(output, summary["metrics"]["proposed_rvqc"]["aggregate"], truth, predictions)
+    # Retain legacy evidence after verifying a lossless CSV round trip.
+    saved = pd.read_csv(output / "results/predictions.csv", float_precision="round_trip")
+    np.testing.assert_array_equal(saved.Actual.to_numpy(), truth.reshape(-1))
+    np.testing.assert_array_equal(saved.Predicted.to_numpy(), predictions.reshape(-1))
+    logging.info("Reformatted saved evaluation; metrics unchanged; no training or inference: %s", output)
 
-def run(args: argparse.Namespace) -> None:
+
+def run(args: argparse.Namespace, model_class=ProposedRVQC, family: str = "proposed_rvqc") -> None:
+    if not 1 <= args.run_number <= config.NUM_RUNS:
+        raise ValueError("Run number outside project NUM_RUNS.")
     suffix = Path(f"horizon_15/run_{args.run_number}")
     if args.smoke_test:
         suffix = Path("_smoke") / suffix
-    destination = training.TRAINING_ROOT / suffix
+    if args.format_existing:
+        if family != "proposed_rvqc":
+            raise ValueError("Legacy conversion applies only to Proposed-RVQC.")
+        format_existing(ROOT / "evaluation" / family / suffix)
+        return
+    destination = ROOT / "experiments" / family / suffix
     checkpoint = destination / "checkpoints/best_checkpoint.pt"
     if not checkpoint.is_file():
         raise FileNotFoundError(f"Selected checkpoint missing; run training first: {checkpoint}")
@@ -115,7 +128,10 @@ def run(args: argparse.Namespace) -> None:
     history_path = destination / "training_history.json"
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     completion = json.loads(history_path.read_text(encoding="utf-8"))["completion"]
-    if (settings["run_number"] != args.run_number or settings["smoke_test"] != args.smoke_test
+    if (settings["experiment"] != f"end-to-end {family}"
+            or settings["seed"] != config.RANDOM_SEED + args.run_number - 1
+            or settings["benchmark_only"]
+            or settings["run_number"] != args.run_number or settings["smoke_test"] != args.smoke_test
             or completion["test_accessed"] or completion["settings_sha256"] != fingerprint(settings_path)
             or sha256(checkpoint) != completion["training_files_sha256"]["checkpoints/best_checkpoint.pt"]):
         raise ValueError("Training completion/checkpoint provenance conflicts.")
@@ -128,30 +144,14 @@ def run(args: argparse.Namespace) -> None:
         raise RuntimeError("CUDA requested but unavailable.")
     torch.set_num_threads(settings["cpu_threads"])
     csv_path = resolve_processed_csv(args.processed_csv)
-    output = training.EVALUATION_ROOT / suffix
+    output = ROOT / "evaluation" / family / suffix
     baseline_root = ROOT / f"evaluation/proposed/horizon_15/run_{args.run_number}/results"
-    provenance = {"settings_sha256": fingerprint(settings_path), "checkpoint_sha256": sha256(checkpoint),
-                  "training_history_sha256": fingerprint(history_path), "run_number": args.run_number,
-                  "seed": settings["seed"], "test_accessed": not args.smoke_test}
-    if not args.smoke_test:
-        provenance["baseline_sources_sha256"] = {name: fingerprint(baseline_root / name)
-            for name in ("predictions.csv", "evaluation_metrics.json")}
-    summary_path = output / "summary.json"
-    if summary_path.is_file():
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        if (any(summary.get(key) != value for key, value in provenance.items())
-                or sha256(output / "predictions.npz") != summary["predictions_sha256"]):
-            raise ValueError("Completed evaluation provenance conflicts.")
-        logging.info("Existing evaluation verified; no retraining or overwrite.")
-        if not args.smoke_test:
-            aggregate(output.parent)
-        return
     if output.exists() and any(p.is_file() for p in output.rglob("*")):
-        raise FileExistsError(f"Partial evaluation requires explicit cleanup: {output}")
+        raise FileExistsError(f"Evaluation output exists; refusing overwrite: {output}")
+    output.mkdir(parents=True, exist_ok=False)
     protected = training.historical_snapshot()
     protected.update({baseline_root / name: sha256(baseline_root / name)
                       for name in ("predictions.csv", "evaluation_metrics.json")} if not args.smoke_test else {})
-    started = time.perf_counter()
     try:
         frame = load_evaluation_frame(csv_path, settings, args.smoke_test)
         feature_scaler = restore_scaler(settings["feature_scaler"], FEATURES)
@@ -159,61 +159,36 @@ def run(args: argparse.Namespace) -> None:
         features = feature_scaler.transform(frame[FEATURES]).astype(np.float32)
         targets = target_scaler.transform(frame.Active_Power.to_numpy().reshape(-1, 1))[:, 0].astype(np.float32)
         dataset = WindowDataset(features, targets)
-        result = Evaluator(ProposedRVQC(), DataLoader(dataset, batch_size=settings["configuration"]["BATCH_SIZE"]),
+        result = Evaluator(model_class(), DataLoader(dataset, batch_size=settings["configuration"]["BATCH_SIZE"]),
                            checkpoint, target_scaler, device).evaluate()
         corrected = result["predictions"].reshape(-1, 3)
         truth = result["targets"].reshape(-1, 3)
-        summary = dict(provenance)
         if not args.smoke_test:
             historical = pd.read_csv(baseline_root / "predictions.csv")
             if list(historical.columns) != ["Actual", "Predicted"] or len(historical) != len(dataset) * 3:
                 raise ValueError("Historical baseline sample/output contract differs.")
             saved_truth = historical.Actual.to_numpy().reshape(-1, 3)
-            baseline = historical.Predicted.to_numpy().reshape(-1, 3)
             difference = truth.astype(np.float64) - saved_truth
             if (not np.isfinite(difference).all() or np.abs(difference).max() > RECOVERY_TARGET_ATOL
                     or np.sqrt(np.mean(difference ** 2)) > RECOVERY_TARGET_RMSE):
                 raise ValueError("Test targets differ from authoritative baseline.")
             truth = saved_truth
-            summary["target_equivalence_max_abs"] = float(np.abs(difference).max())
-            summary["target_equivalence_rmse"] = float(np.sqrt(np.mean(difference ** 2)))
-            summary["metrics"] = {"baseline": forecast_metrics(truth, baseline),
-                                  "proposed_rvqc": forecast_metrics(truth, corrected)}
-            metrics = summary["metrics"]
-            summary["paired_deltas"] = {"aggregate": deltas(metrics["proposed_rvqc"]["aggregate"], metrics["baseline"]["aggregate"]),
-                "per_output": {str(h): deltas(metrics["proposed_rvqc"]["per_output"][str(h)], metrics["baseline"]["per_output"][str(h)]) for h in range(3)}}
-        else:
-            summary["metrics"] = {"proposed_rvqc": forecast_metrics(truth, corrected)}
-        indices = np.arange(len(dataset))
-        arrays = {"sample_index": indices, "processed_input_start_row": (0 if args.smoke_test else VAL_END) + indices,
-                  "y_true_original": truth, "prediction_proposed_rvqc": corrected}
-        timestamps = frame.timestamp.to_numpy(dtype="datetime64[ns]")
-        for name, shift in (("input_start_timestamp", 0), ("input_end_timestamp", 23),
-                            ("target_0_timestamp", 24), ("target_1_timestamp", 25), ("target_2_timestamp", 26)):
-            arrays[name] = timestamps[indices + shift]
-        output.mkdir(parents=True, exist_ok=True)
-        with (output / "predictions.npz").open("xb") as handle:
-            np.savez_compressed(handle, **arrays)
-        summary.update(predictions_sha256=sha256(output / "predictions.npz"),
-                       samples=len(dataset), selected_epoch=completion["selected_epoch"],
-                       runtime_seconds=time.perf_counter() - started)
-        save_json(summary_path, summary)
-        if not args.smoke_test:
-            aggregate(output.parent)
+        write_results(output, forecast_metrics(truth, corrected)["aggregate"], truth, corrected)
         logging.info("Evaluation complete: %s (test accessed=%s); no training performed.", output, not args.smoke_test)
     finally:
         training.assert_protected(protected)
 
 
-def main() -> None:
+def main(model_class=ProposedRVQC, family: str = "proposed_rvqc") -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-number", type=int, required=True, choices=range(1, config.NUM_RUNS + 1))
     parser.add_argument("--processed-csv", type=Path)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto", help="Backbone device; RVQC stays CPU.")
     parser.add_argument("--smoke-test", action="store_true", help="Load disposable smoke checkpoint; evaluate eight non-test windows.")
+    parser.add_argument("--format-existing", action="store_true", help="Verify/convert saved summary/NPZ only; retain originals; no inference.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(args)
+    run(args, model_class, family)
 
 
 if __name__ == "__main__":

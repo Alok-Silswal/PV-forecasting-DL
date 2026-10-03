@@ -115,7 +115,18 @@ def assert_protected(snapshot: dict[Path, str]) -> None:
 
 
 def gradient_check(model: ProposedRVQC, inputs: torch.Tensor, targets: torch.Tensor) -> dict:
-    """Require live gradients in every named path and all 24 quantum angles."""
+    """Require live gradients and the matched two-encoding circuit topology."""
+    tape = qml.workflow.construct_tape(model.rvqc.circuit)(
+        torch.zeros(len(inputs), 6), model.rvqc.weights)
+    expected_operations = []
+    for _ in range(2):
+        expected_operations += [("RY", [wire]) for wire in range(6)]
+        expected_operations += [(name, [wire]) for wire in range(6) for name in ("RZ", "RY")]
+        expected_operations += [("CNOT", [wire, (wire + 1) % 6]) for wire in range(6)]
+    if [(op.name, list(op.wires)) for op in tape.operations] != expected_operations:
+        raise RuntimeError("Data reuploading circuit topology changed.")
+    if [(m.obs.name, list(m.wires)) for m in tape.measurements] != [("PauliZ", [w]) for w in range(6)]:
+        raise RuntimeError("Expected six Pauli-Z measurements.")
     captured: dict[str, torch.Tensor] = {}
     handles = [model.rvqc.projection.register_forward_hook(
         lambda m, i, o: captured.update(projection=o)),
@@ -153,8 +164,13 @@ def gradient_check(model: ProposedRVQC, inputs: torch.Tensor, targets: torch.Ten
         gradient_norms[name] = sum(float(g.norm()) for g in grads)
         if gradient_norms[name] == 0:
             raise RuntimeError(f"Zero gradient path: {name}.")
+    quantum_count = model.rvqc.parameter_counts()["quantum"]
     quantum = model.rvqc.weights.grad
-    if quantum is None or quantum.numel() != 24 or not torch.isfinite(quantum).all() or (quantum == 0).any():
+    if quantum_count == 0:
+        if model.rvqc.weights.requires_grad or quantum is not None or any(
+                p is model.rvqc.weights for p in model.parameters()):
+            raise RuntimeError("Fixed quantum weights must be a nontrainable buffer.")
+    elif quantum is None or quantum.numel() != 24 or not torch.isfinite(quantum).all() or (quantum == 0).any():
         raise RuntimeError(f"Missing/zero/nonfinite quantum gradient: {quantum}")
     for name in ("fusion", "pooled", "cpu_latent", "correction_cpu", "correction"):
         grad = components[name].grad
@@ -166,12 +182,13 @@ def gradient_check(model: ProposedRVQC, inputs: torch.Tensor, targets: torch.Ten
         ordinary = model.backbone(inputs)
         parts = model.forward_components(inputs)
         torch.testing.assert_close(ordinary, parts["baseline"], rtol=0, atol=0)
-    if model.rvqc.parameter_counts() != {"projection":774,"quantum":24,"readout":21,"total":819}:
+    if model.rvqc.parameter_counts() != {"projection":774,"quantum":quantum_count,"readout":21,"total":795+quantum_count}:
         raise RuntimeError("RVQC parameter count changed.")
     model.zero_grad(set_to_none=True)
     return {"shapes": shapes, "gradient_norms": gradient_norms,
             "input_shape": list(inputs.shape), "quantum_only_fusion_gradient_norm": float(quantum_to_fusion.norm()),
-            "quantum_min_abs_gradient": float(quantum.abs().min()), "quantum_parameters": 24,
+            "quantum_min_abs_gradient": float(quantum.abs().min()) if quantum is not None else None,
+            "quantum_parameters": quantum_count,
             "backbone_device": str(inputs.device), "rvqc_device": "cpu",
             "mixed_device_verified": inputs.device.type == "cuda", "hook_prediction_identity_exact": True,
             "live_transfer_gradients": True, "loss": float(loss.detach())}
@@ -234,7 +251,7 @@ def make_trainer(model: ProposedRVQC, train: WindowDataset, validation: WindowDa
                    config.GRADIENT_CLIP_VALUE, epochs)
 
 
-def run(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace, model_class=ProposedRVQC, family: str = "proposed_rvqc") -> None:
     if not 1 <= args.run_number <= config.NUM_RUNS:
         raise ValueError("Run number outside project NUM_RUNS.")
     if config.NUM_EPOCHS != 100 or config.EARLY_STOPPING_PATIENCE != 15 or config.ACTIVE_HORIZON != '15':
@@ -257,7 +274,10 @@ def run(args: argparse.Namespace) -> None:
              ROOT/'artifacts/residual_learning/proposed/horizon_15/run_1/manifest.json']
     sources += [ROOT/f'models/{name}.py' for name in ('dcnn','feature_attention','residual_bilstm',
                 'temporal_attention','scalar_gated_fusion','mlp_head')]
-    settings={"experiment":"end-to-end proposed_rvqc","run_number":args.run_number,"seed":seed,
+    if family == "proposed_reupload":
+        sources += list((ROOT / "models/proposed_reupload").glob("*.py"))
+        sources.append(ROOT / "models/residual_learning/quantum_fixed_reupload_feature_map.py")
+    settings={"experiment":f"end-to-end {family}","run_number":args.run_number,"seed":seed,
               "seed_formula":"config.RANDOM_SEED + run_number - 1","initialization":"from scratch; no pretrained weights",
               "backbone_device":str(device),"rvqc_device":"cpu","cpu_threads":args.cpu_threads,
               "configuration":{key:getattr(config,key) for key in ('BATCH_SIZE','NUM_EPOCHS','EARLY_STOPPING_PATIENCE','LEARNING_RATE','WEIGHT_DECAY','GRADIENT_CLIP_VALUE','SCHEDULER_MODE','SCHEDULER_FACTOR','SCHEDULER_PATIENCE','SCHEDULER_MIN_LR','SHUFFLE_TRAIN','NUM_WORKERS')},
@@ -269,7 +289,7 @@ def run(args: argparse.Namespace) -> None:
               "smoke_test":args.smoke_test,"benchmark_only":args.benchmark}
     suffix=Path(f'horizon_15/run_{args.run_number}')
     if args.smoke_test or args.benchmark: suffix=Path('_smoke' if args.smoke_test else '_benchmark')/suffix
-    destination=TRAINING_ROOT/suffix
+    destination=ROOT/'experiments'/family/suffix
     summary_path=destination/('benchmark.json' if args.benchmark else 'training_history.json')
     settings_path=destination/'settings.json'
     if summary_path.exists():
@@ -291,26 +311,26 @@ def run(args: argparse.Namespace) -> None:
         return
     existing=[p for base in (destination,) if base.exists() for p in base.rglob('*') if p.is_file()]
     if existing:raise FileExistsError(f"Partial run is not safely resumable; archive/explicitly clean before restarting: {existing}")
+    destination.mkdir(parents=True, exist_ok=False)
     protected=historical_snapshot(); started=time.perf_counter()
     try:
         torch.set_num_threads(args.cpu_threads); _set_seed(seed)
         train,validation,feature_scaler,target_scaler,source=load_fitting_data(csv_path)
         settings.update(source)
-        model=ProposedRVQC().to(device)
+        model=model_class().to(device)
         probe=next(iter(DataLoader(train,batch_size=8)))
         with torch.random.fork_rng(devices=[device.index or 0] if device.type=='cuda' else []):
             checks=gradient_check(model,probe[0].to(device),probe[1].to(device))
         # Probe must not change batch-normalization state of the actual training initialization.
-        _set_seed(seed); model=ProposedRVQC().to(device)
+        _set_seed(seed); model=model_class().to(device)
         settings.update(feature_scaler=scaler_stats(feature_scaler),target_scaler=scaler_stats(target_scaler),
                         split_rows={'train':[0,TRAIN_END],'validation':[TRAIN_END,VAL_END],'test':[VAL_END,EXPECTED_ROWS]},
                         samples={'train':len(train),'validation':len(validation),'test':EXPECTED_ROWS-VAL_END-26},
                         parameter_counts={'backbone':sum(p.numel() for p in model.backbone.parameters()),'rvqc':model.rvqc.parameter_counts()})
-        destination.mkdir(parents=True,exist_ok=True)
-        if args.benchmark or args.smoke_test:
+        if args.benchmark:
             report=benchmark(model,train,validation,device)
             logging.info('Actual model benchmark: %s',json.dumps(report))
-            _set_seed(seed); model=ProposedRVQC().to(device)
+            _set_seed(seed); model=model_class().to(device)
         else:report=None
         if args.benchmark:
             save_json(settings_path,settings)
@@ -318,14 +338,14 @@ def run(args: argparse.Namespace) -> None:
             logging.info('Benchmark complete; test accessed=False.')
             return
         if args.smoke_test:
-            train=WindowDataset(train.features,train.targets,np.arange(2*config.BATCH_SIZE))
-            validation=WindowDataset(validation.features,validation.targets,np.arange(config.BATCH_SIZE))
+            train=WindowDataset(train.features,train.targets,np.arange(8))
+            validation=WindowDataset(validation.features,validation.targets,np.arange(8))
         save_json(settings_path,settings)
         trainer=make_trainer(model,train,validation,device,destination,1 if args.smoke_test else config.NUM_EPOCHS)
         history=trainer.train()
         checkpoint=destination/'checkpoints/best_checkpoint.pt'
         state=torch.load(checkpoint,map_location='cpu',weights_only=True)
-        restored=ProposedRVQC().to(device); restored.load_state_dict(state['model_state_dict'],strict=True);restored.eval()
+        restored=model_class().to(device); restored.load_state_dict(state['model_state_dict'],strict=True);restored.eval()
         model.load_state_dict(state['model_state_dict'],strict=True); model.eval()
         with torch.no_grad():torch.testing.assert_close(model(probe[0].to(device)),restored(probe[0].to(device)),rtol=0,atol=0)
         summary={'settings_sha256':fingerprint(settings_path),'run_number':args.run_number,'seed':seed,
@@ -343,7 +363,7 @@ def run(args: argparse.Namespace) -> None:
         assert_protected(protected)
 
 
-def main() -> None:
+def main(model_class=ProposedRVQC, family: str = "proposed_rvqc") -> None:
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-number',type=int,required=True)
     parser.add_argument('--processed-csv',type=Path)
@@ -353,7 +373,7 @@ def main() -> None:
     args=parser.parse_args()
     if args.cpu_threads<1:parser.error('--cpu-threads must be positive')
     logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
-    run(args)
+    run(args, model_class, family)
 
 
 if __name__=='__main__':
