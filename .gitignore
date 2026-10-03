@@ -74,6 +74,9 @@ artifacts/feature_scaler.pkl
 artifacts/target_scaler.pkl
 artifacts/preprocessing_config.json
 
+# Frozen Proposed residual train/validation caches
+artifacts/proposed_rvqc/cache/
+
 # Local compressed processed dataset
 notebooks/DKASC_Preprocessed.csv.gz
 
