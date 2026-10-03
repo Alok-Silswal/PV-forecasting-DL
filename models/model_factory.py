@@ -13,7 +13,6 @@ from torch import nn
 
 from configs import config
 from models.proposed_model import ProposedModel
-from models.proposed_model_qubo import ProposedModelQUBO
 from models.comparison_models.cnn import CNN
 from models.comparison_models.lstm import LSTM
 from models.comparison_models.cnn_lstm import CNNLSTM
@@ -65,25 +64,6 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
             **kwargs,
         )
 
-    if model_name == "proposed_qubo":
-        return ProposedModelQUBO(**kwargs)
-
-    if model_name in {
-        "proposed_phn",
-        "proposed_phn_5q",
-        "proposed_phn_6q",
-        "proposed_phn_7q",
-        "proposed_phn_8q",
-        "proposed_phn_9q",
-        "proposed_phn_10q",
-    }:
-        return ProposedModel(use_quantum_branch=True, **kwargs)
-
-    if model_name == "phn":
-        from models.phn_model import PHNModel
-
-        return PHNModel(**kwargs)
-
     if model_name == "cnn":
         return CNN(**kwargs)
 
@@ -102,15 +82,6 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "proposed_no_fa",
         "proposed_no_fusion",
         "proposed_no_fa_no_ta_no_fusion",
-        "proposed_qubo",
-        "proposed_phn",
-        "proposed_phn_5q",
-        "proposed_phn_6q",
-        "proposed_phn_7q",
-        "proposed_phn_8q",
-        "proposed_phn_9q",
-        "proposed_phn_10q",
-        "phn",
         "cnn",
         "lstm",
         "cnn_lstm",

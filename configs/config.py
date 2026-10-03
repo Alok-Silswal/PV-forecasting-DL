@@ -42,7 +42,7 @@ ACTIVE_HORIZON = "15"
 # Model Configuration
 # =============================================================================
 
-MODEL_NAME = "proposed_phn_10q"
+MODEL_NAME = "proposed"
 
 HORIZON_DIR_NAME = f"horizon_{ACTIVE_HORIZON}"
 
@@ -123,28 +123,6 @@ FEATURE_SCALER_FILE = ARTIFACT_DIR / "feature_scaler.pkl"
 TARGET_SCALER_FILE = ARTIFACT_DIR / "target_scaler.pkl"
 
 PREPROCESSING_CONFIG_FILE = ARTIFACT_DIR / "preprocessing_config.json"
-
-
-# =============================================================================
-# QUBO Lag-Selection Dataset Artifacts (additive; 15-minute horizon only)
-#
-# Distinct from, and does not modify, any constant above. Used only when
-# config.MODEL_NAME (or an explicit --model override) selects the
-# "proposed_qubo" model; the baseline TRAIN_15_FILE / VAL_15_FILE /
-# TEST_15_FILE / TARGET_SCALER_FILE constants above are untouched and
-# remain what every other model continues to use.
-# =============================================================================
-
-QUBO_ARTIFACT_DIR = ARTIFACT_DIR / "qubo_lag_selection"
-
-QUBO_TRAIN_15_FILE = QUBO_ARTIFACT_DIR / "train_15.pt"
-QUBO_VAL_15_FILE = QUBO_ARTIFACT_DIR / "val_15.pt"
-QUBO_TEST_15_FILE = QUBO_ARTIFACT_DIR / "test_15.pt"
-
-QUBO_FEATURE_SCALER_FILE = QUBO_ARTIFACT_DIR / "feature_scaler.pkl"
-QUBO_TARGET_SCALER_FILE = QUBO_ARTIFACT_DIR / "target_scaler.pkl"
-
-QUBO_PREPROCESSING_CONFIG_FILE = QUBO_ARTIFACT_DIR / "preprocessing_config.json"
 
 
 # =============================================================================
@@ -250,25 +228,6 @@ FEATURE_ATTENTION_REDUCTION = 8
 
 MLP_HIDDEN_DIM = 64        # Fixed architecture default
 MLP_DROPOUT_RATE = 0.20    # Fixed architecture default
-
-
-# =============================================================================
-# PHN Quantum Branch (VQC)
-# =============================================================================
-
-VQC_NUM_QUBITS = 5                # Fixed: 5-qubit circuit
-
-VQC_DEPTH = 2                      # Fixed: 2 variational layers
-
-VQC_ENCODING = "angle"             # Angle encoding (RY rotation, bounded via tanh * pi)
-
-VQC_SIMULATOR = "default.qubit"    # Noiseless, analytic statevector simulator; no hardware
-                                    # backend. "lightning.qubit" is also supported (see
-                                    # models/vqc_branch.py) for comparison/fallback.
-
-VQC_DIFF_METHOD = "backprop"       # Reverse-mode autodiff through the simulated statevector;
-                                    # requires VQC_SIMULATOR = "default.qubit". "adjoint" is
-                                    # also supported on either simulator.
 
 
 # =============================================================================

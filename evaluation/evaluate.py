@@ -148,35 +148,6 @@ def _apply_runtime_overrides(model_name: str, horizon: str, run_number: int) -> 
 
 
 
-# Model names that must be routed to the QUBO-preprocessed test dataset
-# and target scaler (artifacts/qubo_lag_selection/...) rather than the
-# horizon-keyed baseline artifacts. Kept as a set, and duplicated here
-# rather than imported from main.py, since evaluate.py has no existing
-# dependency on main.py and the two scripts are otherwise independent
-# entry points.
-_QUBO_MODEL_NAMES = {"proposed_qubo"}
-
-
-def _is_qubo_model(model_name: str) -> bool:
-    """
-    Determine whether ``model_name`` is a QUBO lag-selection model that
-    must be routed to the QUBO-specific test dataset and target scaler.
-
-    Parameters
-    ----------
-    model_name : str
-        Value of ``config.MODEL_NAME`` for the current run.
-
-    Returns
-    -------
-    bool
-        True if ``model_name`` (case-insensitive) is a registered QUBO
-        model name.
-    """
-
-    return model_name.lower() in _QUBO_MODEL_NAMES
-
-
 def _select_device() -> torch.device:
     """
     Select the device used for evaluation.
@@ -202,42 +173,28 @@ def _select_device() -> torch.device:
 def _resolve_test_dataset_path() -> Path:
     """
     Resolve the test dataset artifact matching the configured forecast
-    horizon and model.
-
-    For QUBO models (see ``_is_qubo_model``), resolves to the
-    QUBO-preprocessed test artifact under
-    ``artifacts/qubo_lag_selection/`` (``config.QUBO_TEST_15_FILE``)
-    instead of the horizon-keyed baseline artifact. Every other model
-    continues to resolve exactly as before.
+    horizon.
 
     Returns
     -------
     Path
-        Path to ``config.TEST_15_FILE``/``config.TEST_60_FILE`` (or
-        their ``QUBO_`` counterparts for a QUBO model), depending on
-        ``config.ACTIVE_HORIZON`` and ``config.MODEL_NAME``.
+        Path to ``config.TEST_15_FILE`` or ``config.TEST_60_FILE``,
+        depending on ``config.ACTIVE_HORIZON``.
 
     Raises
     ------
     ValueError
-        If ``config.ACTIVE_HORIZON`` is not a recognized horizon for
-        the selected model.
+        If ``config.ACTIVE_HORIZON`` is not a recognized horizon.
     """
 
-    if _is_qubo_model(config.MODEL_NAME):
-        horizon_to_file = {
-            "15": config.QUBO_TEST_15_FILE,
-        }
-    else:
-        horizon_to_file = {
-            "15": config.TEST_15_FILE,
-            "60": config.TEST_60_FILE,
-        }
+    horizon_to_file = {
+        "15": config.TEST_15_FILE,
+        "60": config.TEST_60_FILE,
+    }
 
     if config.ACTIVE_HORIZON not in horizon_to_file:
         raise ValueError(
-            f"Invalid forecast horizon: {config.ACTIVE_HORIZON!r} for "
-            f"model {config.MODEL_NAME!r}. "
+            f"Invalid forecast horizon: {config.ACTIVE_HORIZON!r}. "
             f"Expected one of {sorted(horizon_to_file)}."
         )
 
@@ -296,30 +253,6 @@ def _load_test_dataset(test_dataset_path: Path) -> Dataset:
         f"expected a Dataset, a (inputs, targets) tuple, or a dict with "
         f"'X'/'y' or 'inputs'/'targets' keys; got {type(loaded).__name__}."
     )
-
-
-def _resolve_target_scaler_path() -> Path:
-    """
-    Resolve the target scaler artifact matching the configured model.
-
-    For QUBO models (see ``_is_qubo_model``), resolves to the
-    QUBO-specific target scaler under ``artifacts/qubo_lag_selection/``
-    (``config.QUBO_TARGET_SCALER_FILE``) instead of the global baseline
-    scaler. Every other model continues to resolve to
-    ``config.TARGET_SCALER_FILE`` exactly as before, so a QUBO
-    evaluation run can never silently inverse-transform its predictions
-    with the baseline scaler (or vice versa).
-
-    Returns
-    -------
-    Path
-        Path to the appropriate target scaler ``.pkl`` file.
-    """
-
-    if _is_qubo_model(config.MODEL_NAME):
-        return config.QUBO_TARGET_SCALER_FILE
-
-    return config.TARGET_SCALER_FILE
 
 
 def _load_target_scaler(target_scaler_path: Path):
@@ -463,7 +396,7 @@ def main() -> None:
         num_workers=config.NUM_WORKERS,
     )
 
-    target_scaler_path = Path(_resolve_target_scaler_path())
+    target_scaler_path = Path(config.TARGET_SCALER_FILE)
     target_scaler = _load_target_scaler(target_scaler_path)
 
     checkpoint_path = Path(config.BEST_CHECKPOINT_PATH)

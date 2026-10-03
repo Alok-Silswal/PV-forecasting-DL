@@ -51,7 +51,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Name of the model to train, given positionally (e.g. "
-            "'python main.py proposed_phn --horizon 15 --run1'). "
+            "'python main.py proposed --horizon 15 --run1'). "
             "Equivalent to --model."
         ),
     )
@@ -63,11 +63,7 @@ def _parse_args() -> argparse.Namespace:
             "Name of the model to train (overrides config.MODEL_NAME for "
             "this run only). Supported: cnn, lstm, cnn_lstm, "
             "dcnn_rbilstm, proposed, proposed_no_ta, proposed_no_fa, "
-            "proposed_no_fusion, proposed_no_fa_no_ta_no_fusion, "
-            "proposed_phn. 'proposed_phn' is the Parallel "
-            "Hybrid Network extension (classical backbone + compact VQC "
-            "branch); it uses the exact same training pipeline as every "
-            "other model (see models/model_factory.py)."
+            "proposed_no_fusion, proposed_no_fa_no_ta_no_fusion."
         ),
     )
     parser.add_argument(
@@ -261,52 +257,17 @@ def _select_device() -> torch.device:
 
 
 
-# Model names that must be routed to the QUBO-preprocessed dataset
-# artifacts (artifacts/qubo_lag_selection/...) rather than the
-# horizon-keyed baseline artifacts. A set, not a single string, so any
-# future QUBO ablation variant can be added here without touching the
-# routing logic itself.
-_QUBO_MODEL_NAMES = {"proposed_qubo"}
-
-
-def _is_qubo_model(model_name: str) -> bool:
-    """
-    Determine whether ``model_name`` is a QUBO lag-selection model that
-    must be routed to the QUBO-specific dataset/scaler artifacts.
-
-    Parameters
-    ----------
-    model_name : str
-        Value of ``config.MODEL_NAME`` for the current run.
-
-    Returns
-    -------
-    bool
-        True if ``model_name`` (case-insensitive) is a registered QUBO
-        model name.
-    """
-
-    return model_name.lower() in _QUBO_MODEL_NAMES
-
-
 def _resolve_dataset_paths(horizon: str) -> Tuple[Path, Path]:
     """
     Resolve the train/validation artifact paths for the configured
-    forecast horizon and model.
-
-    For QUBO models (see ``_is_qubo_model``), this resolves to the
-    QUBO-preprocessed artifacts under ``artifacts/qubo_lag_selection/``
-    (``config.QUBO_TRAIN_{horizon}_FILE`` / ``config.QUBO_VAL_{horizon}_FILE``)
-    instead of the horizon-keyed baseline artifacts. Every other model
-    continues to resolve exactly as before, via
-    ``TRAIN_{horizon}_FILE`` / ``VAL_{horizon}_FILE``.
+    forecast horizon.
 
     Parameters
     ----------
     horizon : str
         Forecast horizon identifier, e.g. ``"15"`` or ``"60"``, matching
         the ``TRAIN_{horizon}_FILE`` / ``VAL_{horizon}_FILE`` constants in
-        ``configs.config`` (or their ``QUBO_`` counterparts).
+        ``configs.config``.
 
     Returns
     -------
@@ -316,22 +277,18 @@ def _resolve_dataset_paths(horizon: str) -> Tuple[Path, Path]:
     Raises
     ------
     ValueError
-        If no dataset constants exist for the given horizon/model
-        combination.
+        If no dataset constants exist for the given horizon.
     FileNotFoundError
         If the resolved artifact paths do not exist on disk.
     """
 
-    prefix = "QUBO_" if _is_qubo_model(config.MODEL_NAME) else ""
-
-    train_attr = f"{prefix}TRAIN_{horizon}_FILE"
-    val_attr = f"{prefix}VAL_{horizon}_FILE"
+    train_attr = f"TRAIN_{horizon}_FILE"
+    val_attr = f"VAL_{horizon}_FILE"
 
     if not hasattr(config, train_attr) or not hasattr(config, val_attr):
         raise ValueError(
-            f"Invalid forecast horizon '{horizon}' for model "
-            f"'{config.MODEL_NAME}'. No '{train_attr}' / '{val_attr}' "
-            f"constants are defined in configs/config.py."
+            f"Invalid forecast horizon '{horizon}'. No '{train_attr}' / "
+            f"'{val_attr}' constants are defined in configs/config.py."
         )
 
     train_path: Path = getattr(config, train_attr)
