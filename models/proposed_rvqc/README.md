@@ -63,8 +63,9 @@ best-checkpoint validation score.
 
 Test evaluation requires only the selected completed run's settings, preflight
 evidence and residual checkpoint, plus its original Proposed checkpoint.
-Training/model source hashes and data provenance are checked. Train-only scaler
-reconstruction must match the saved statistics before those exact statistics
+Training/model source hashes and data provenance are checked. The notebook hash
+is informational; executable `data.py` provenance remains enforced. Train-only
+scaler reconstruction must match the saved statistics before those exact statistics
 are restored. No generated train/validation cache is required; no test cache
 is built.
 

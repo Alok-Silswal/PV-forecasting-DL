@@ -56,7 +56,8 @@ def load_test(processed_csv, identity):
     del datasets
     saved = identity["provenance"]
     for key, value in provenance.items():
-        if key == "source_path" or key.endswith("_version") or key == "scalers":
+        # The notebook is a reference; data.py is the executable reconstruction.
+        if key in ("source_path", "notebook_sha256", "scalers") or key.endswith("_version"):
             continue
         if saved[key] != value:
             raise ValueError(f"Source preprocessing provenance changed: {key}")
