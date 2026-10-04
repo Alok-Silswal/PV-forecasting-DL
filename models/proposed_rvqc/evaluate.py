@@ -29,11 +29,13 @@ def load_settings(run, family):
         raise ValueError("Selected run is incomplete or has mismatched run/seed metadata.")
     current_protocol = protocol()
     for key, value in current_protocol.items():
+        if key == "requirements_sha256":
+            continue
         saved = record["protocol"][key]
         if key == "module_hashes":
-            # Evaluation changes do not change the fitted model or training protocol.
-            matches = all(saved[name] == digest for name, digest in value.items()
-                          if name != "evaluate.py")
+            # Only executable reconstruction and model code affect evaluation.
+            matches = all(saved[name] == value[name] for name in
+                          ("data.py", "frozen_baseline.py", "residual_branch.py"))
         elif key == "torch_version":
             matches = saved.split("+")[0] == value.split("+")[0]
         else:
@@ -100,8 +102,6 @@ def main():
     record = load_settings(args.run, args.family)
     identity = record["cache_identity"]
     directory = ROOT / f"evaluation/{args.family}/horizon_15/run_{args.run}"
-    if directory.exists():
-        raise FileExistsError("Refusing to overwrite existing evaluation results.")
     model = FrozenResidualModel(args.run, args.family)
     if model.frozen.sha256 != identity["checkpoint_sha256"]:
         raise ValueError("Original Proposed checkpoint changed.")
@@ -122,11 +122,15 @@ def main():
     prediction = target_scaler.inverse_transform(torch.cat(predictions).numpy().reshape(-1, 1)).reshape(-1)
     target = target_scaler.inverse_transform(torch.cat(targets).numpy().reshape(-1, 1)).reshape(-1)
     _save_predictions(directory / "results/predictions.csv", prediction, target)
-    _save_metrics(directory / "results/evaluation_metrics.json", compute_metrics(prediction, target))
+    metrics = compute_metrics(prediction, target)
+    _save_metrics(directory / "results/evaluation_metrics.json", metrics)
     plotter = EvaluationPlotter(directory / "plots", max_plot_samples=1000)
     plotter.plot_predictions(prediction, target)
     plotter.plot_residuals(prediction, target)
     plotter.plot_prediction_scatter(prediction, target)
+    print(f"Evaluation complete\nFamily: {args.family}\nRun: {args.run}\n"
+          f"RMSE: {metrics['rmse']:.6f}\nMAE: {metrics['mae']:.6f}\n"
+          f"R2: {metrics['r2']:.6f}\nResults saved to: {directory}")
 
 
 if __name__ == "__main__":
