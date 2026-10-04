@@ -1,0 +1,193 @@
+{
+  "family": "proposed_rvqc",
+  "run": 1,
+  "seed": 42,
+  "blocks": 3,
+  "quantum_angles": 36,
+  "trainable_quantum_angles": 36,
+  "trainable_parameter_count": 831,
+  "protocol": {
+    "optimizer": "Adam",
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "batch_size": 256,
+    "max_epochs": 100,
+    "patience": 15,
+    "scheduler": {
+      "name": "CosineAnnealingLR",
+      "T_max": 100,
+      "eta_min": 1e-06
+    },
+    "quantum_shape": [
+      3,
+      6,
+      2
+    ],
+    "quantum_initialization": "Uniform(-0.1,0.1)",
+    "common_seed_offset": 0,
+    "quantum_seed_offset": 10000,
+    "permutation_seed_offset": 20000,
+    "epoch_indexing": "zero_based",
+    "criterion": "lowest_validation_MSE",
+    "baseline_fallback": false,
+    "torch_version": "2.13.0+cu130",
+    "pennylane_version": "0.45.1",
+    "requirements_sha256": "21efb5c2904b129e413ed93180d5ce715184d2811b37c0e615fea657911eef27",
+    "module_hashes": {
+      "__init__.py": "821f64d9b43b1cbf343431a5304d73575df2a35d6a333dbf12bbc0780776921c",
+      "batch_order.py": "4b155dc6016b48d253d3c1418cce4a6659d3b89274fa09f00a38b62af8f5fb30",
+      "cache.py": "174a4f27f4294d6f63e4b9351f740e86f1c80908d8601579c8f9ad7c2ed8ef23",
+      "data.py": "8df03cde00a333cd6780297d60c2383f2e69da7a8c284549db8ab6b60c08115b",
+      "depth_branch.py": "3a4fa11b04fe0fef85a7407d07e25d95c55f00e67d4f7479642244fa6ac80d98",
+      "depth_pilot.py": "be3b1a78270714bfb06781dc5095423b79e391f23645db68c6bb7ac2c7bbf573",
+      "depth_preflight.py": "29640bd0d8071920ae9606c0db01567d3270a667dcda55900a346601d5656860",
+      "depth_summary.py": "a0abf224ac080ecdeb9a295d994ff276c44535c31cdd97dd5dd2113b9011a210",
+      "evaluate.py": "065d125f06b40ffde75087821b374ef8bee5f22a0bb5d7d34aeabfd96a8d05db",
+      "frozen_baseline.py": "7fd7d4009274c4824172c10ab81a7fb4fa78de7a84bf0337251e526e1340d6c2",
+      "preflight.py": "b050a9f3c604591031e039385ac7e80791edeb7f207154b424b67dc426e8bb6e",
+      "residual_branch.py": "581233502162b6b40d80d9f4061c1218a33ac2a28e33b19be71acd5197c4d231",
+      "run_experiment.py": "351c9f85595ac528a598484c8b9dcfa304ba7106eca8e8cf25271fc0f16b9362"
+    }
+  },
+  "cache_identity": {
+    "provenance": {
+      "source_path": "/kaggle/working/Processed.csv",
+      "source_prefix_sha256": "7d26ca0734fd4b62be5f097729d0834675d63318ea6481f3502bbcdd71cd354b",
+      "fitting_prefix_sha256": "2695196d3bb83d9693e9e9cc7798f56125f0f2204e38e2b5e60a4404c6b01640",
+      "source_rows_read": 905495,
+      "test_rows_read": 0,
+      "declared_total_rows": 1065289,
+      "splits": {
+        "train": [
+          0,
+          745702
+        ],
+        "validation": [
+          745702,
+          905495
+        ]
+      },
+      "features": [
+        "Weather_Temperature_Celsius",
+        "Weather_Relative_Humidity",
+        "Global_Horizontal_Radiation",
+        "Diffuse_Horizontal_Radiation",
+        "Radiation_Global_Tilted",
+        "Radiation_Diffuse_Tilted",
+        "Active_Power"
+      ],
+      "target": "Active_Power",
+      "lookback": 24,
+      "outputs": 3,
+      "stride": 1,
+      "window_counts": {
+        "train": 745676,
+        "validation": 159767
+      },
+      "dtype": "float32",
+      "notebook_sha256": "e7f96b98e2f0a552bbcc9a3081b0af7ad4646790970e7573c14e49b4924bb7d3",
+      "data_module_sha256": "8df03cde00a333cd6780297d60c2383f2e69da7a8c284549db8ab6b60c08115b",
+      "sklearn_version": "1.9.0",
+      "pandas_version": "3.0.3",
+      "numpy_version": "2.0.2",
+      "torch_version": "2.13.0+cu130",
+      "scalers": {
+        "feature": {
+          "class": "StandardScaler",
+          "mean": [
+            21.32121364199132,
+            35.759676042422385,
+            265.9116992264983,
+            53.46196089162243,
+            289.38831633289294,
+            56.879555140385484,
+            48.63436094414469
+          ],
+          "scale": [
+            10.297735204766703,
+            23.07478645135192,
+            365.052901418772,
+            89.58229374716824,
+            386.703999394538,
+            215.69526431533706,
+            65.73854637864127
+          ],
+          "variance": [
+            106.04335034749154,
+            532.4457697754941,
+            133263.62083426368,
+            8024.987353003938,
+            149539.98314773088,
+            46524.44704806311,
+            4321.556479976769
+          ],
+          "fitted_rows": 745702,
+          "n_features": 7
+        },
+        "target": {
+          "class": "StandardScaler",
+          "mean": [
+            48.63436094414469
+          ],
+          "scale": [
+            65.73854637864127
+          ],
+          "variance": [
+            4321.556479976769
+          ],
+          "fitted_rows": 745702,
+          "n_features": 1
+        }
+      }
+    },
+    "checkpoint_sha256": "313ed3d81aa24b9b016ee656c99d12fbf5217eae0850430e71a1b53c9a3e8b4b",
+    "run": 1,
+    "seed": 42,
+    "scope": "full",
+    "validation_gate": {
+      "passed": true,
+      "checks": {
+        "val_loss": true,
+        "rmse": true,
+        "mae": true,
+        "mape": true,
+        "r2": true,
+        "nrmse": true
+      },
+      "actual_val_loss": 0.024632842728211205,
+      "expected_val_loss": 0.02463284266440418,
+      "actual_metrics": {
+        "rmse": 0.1569485546261216,
+        "mae": 0.054777976125478745,
+        "mape": 54.7838020324707,
+        "r2": 0.9749191999435425,
+        "nrmse": 0.0461814486830587
+      },
+      "expected_metrics": {
+        "rmse": 0.15694854275825046,
+        "mae": 0.054777972400188446,
+        "mape": 54.78376770019531,
+        "r2": 0.9749191999435425,
+        "nrmse": 0.04618144519098779
+      },
+      "checkpoint_epoch": 33,
+      "checkpoint_sha256": "313ed3d81aa24b9b016ee656c99d12fbf5217eae0850430e71a1b53c9a3e8b4b",
+      "history_sha256": "0b03088c5ccc1fe6f30c9c3f8283edf5558b6f025a5015e09336e030e4afb4ef",
+      "loss_tolerance": {
+        "rtol": 1e-05,
+        "atol": 1e-07
+      },
+      "metric_tolerance": {
+        "rtol": 0.0001,
+        "atol": 1e-06
+      }
+    },
+    "frozen_extractor_sha256": "7fd7d4009274c4824172c10ab81a7fb4fa78de7a84bf0337251e526e1340d6c2"
+  },
+  "test_rows_read": 0,
+  "metric_units": "train_standardized_target",
+  "training_complete": true,
+  "pilot_source_sha256": "be3b1a78270714bfb06781dc5095423b79e391f23645db68c6bb7ac2c7bbf573",
+  "depth_branch_sha256": "3a4fa11b04fe0fef85a7407d07e25d95c55f00e67d4f7479642244fa6ac80d98",
+  "best_checkpoint_sha256": "e918d4b7ebd5a3fdf99ff3549e4ba491ad7789a0dcaadbb453c0c16317ae32c8"
+}
