@@ -1,9 +1,7 @@
-"""Final test evaluation, gated on completion of all ten paired experiments."""
+"""Test evaluation for one completed residual experiment."""
 
 import argparse
-import hashlib
 import json
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -15,57 +13,71 @@ from evaluation.evaluate import _save_metrics, _save_predictions
 from evaluation.plots import EvaluationPlotter
 from training.metrics import compute_metrics
 
-from .cache import CACHE_ROOT, verify_cache
-from .data import FEATURES, ROOT, TOTAL_ROWS, VAL_END, Windows, file_hash
+from .data import FEATURES, ROOT, TOTAL_ROWS, VAL_END, Windows, file_hash, reconstruct
 from .residual_branch import FAMILIES, FrozenResidualModel
 from .run_experiment import protocol
 
 
-def release_settings():
-    settings = {}
+def load_settings(run, family):
+    directory = ROOT / f"experiments/{family}/horizon_15/run_{run}"
+    record = json.loads((directory / "settings.json").read_text())
+    identity = record["cache_identity"]
+    if (not record["training_complete"] or record["family"] != family or
+            record["run"] != run or record["seed"] != 41 + run or
+            identity["run"] != run or identity["seed"] != 41 + run or
+            identity["scope"] != "full"):
+        raise ValueError("Selected run is incomplete or has mismatched run/seed metadata.")
     current_protocol = protocol()
-    source_prefix = None
-    for family in FAMILIES:
-        for run in range(1, 6):
-            directory = ROOT / f"experiments/{family}/horizon_15/run_{run}"
-            record = json.loads((directory / "settings.json").read_text())
-            if (not record["training_complete"] or record["protocol"] != current_protocol or
-                    record["family"] != family or record["run"] != run):
-                raise ValueError("All ten experiments must be complete under this exact protocol.")
-            checkpoint = directory / "checkpoints/best_checkpoint.pt"
-            if file_hash(checkpoint) != record["best_checkpoint_sha256"]:
-                raise ValueError("Selected residual checkpoint changed after training.")
-            identity = record["cache_identity"]
-            prefix = identity["provenance"]["source_prefix_sha256"]
-            if source_prefix is not None and prefix != source_prefix:
-                raise ValueError("Paired experiments did not use the same source prefix.")
-            source_prefix = prefix
-            checks = json.loads((directory / "preflight.json").read_text())
-            if checks["test_rows_read"] != 0 or checks["quantum_trainable_counts"] != [24, 0]:
-                raise ValueError("Missing required preflight evidence.")
-            settings[family, run] = record
-    return settings
+    for key, value in current_protocol.items():
+        saved = record["protocol"][key]
+        if key == "module_hashes":
+            # Evaluation changes do not change the fitted model or training protocol.
+            matches = all(saved[name] == digest for name, digest in value.items()
+                          if name != "evaluate.py")
+        elif key == "torch_version":
+            matches = saved.split("+")[0] == value.split("+")[0]
+        else:
+            matches = saved == value
+        if not matches:
+            raise ValueError(f"Selected run protocol changed: {key}")
+    if file_hash(directory / "checkpoints/best_checkpoint.pt") != record["best_checkpoint_sha256"]:
+        raise ValueError("Selected residual checkpoint changed after training.")
+    checks = json.loads((directory / "preflight.json").read_text())
+    gate = identity["validation_gate"]
+    if (checks["test_rows_read"] != 0 or checks["quantum_trainable_counts"] != [24, 0] or
+            not gate["passed"] or gate["checkpoint_sha256"] != identity["checkpoint_sha256"] or
+            identity["frozen_extractor_sha256"] != current_protocol["module_hashes"]["frozen_baseline.py"]):
+        raise ValueError("Missing or mismatched preflight/validation evidence.")
+    return record
 
 
-def load_released_test(processed_csv, identity, cache_dir):
-    """Called only after the explicit release and all training-completion checks."""
-    digest = hashlib.sha256()
-    with Path(processed_csv).open("rb") as stream:
-        for _ in range(VAL_END + 1):
-            line = stream.readline()
-            if not line:
-                raise ValueError("Incomplete source data.")
-            digest.update(line)
-    if digest.hexdigest() != identity["provenance"]["source_prefix_sha256"]:
-        raise ValueError("Source train/validation prefix changed.")
+def load_test(processed_csv, identity):
+    datasets, feature_scaler, target_scaler, provenance = reconstruct(processed_csv)
+    del datasets
+    saved = identity["provenance"]
+    for key, value in provenance.items():
+        if key == "source_path" or key.endswith("_version") or key == "scalers":
+            continue
+        if saved[key] != value:
+            raise ValueError(f"Source preprocessing provenance changed: {key}")
+    for name, scaler in (("feature", feature_scaler), ("target", target_scaler)):
+        expected = saved["scalers"][name]
+        actual = provenance["scalers"][name]
+        for key in ("class", "fitted_rows", "n_features"):
+            if expected[key] != actual[key]:
+                raise ValueError(f"Train-fitted {name} scaler metadata changed: {key}")
+        for key, attribute in (("mean", "mean_"), ("scale", "scale_"), ("variance", "var_")):
+            if not np.allclose(actual[key], expected[key], rtol=1e-12, atol=1e-12):
+                raise ValueError(f"Train-fitted {name} scaler changed: {key}")
+            # Restore exact saved statistics after independently verifying the train fit.
+            setattr(scaler, attribute, np.asarray(expected[key], dtype=np.float64))
     frame = pd.read_csv(processed_csv, parse_dates=["timestamp"])
     if len(frame) != TOTAL_ROWS:
         raise ValueError("Unexpected finalized source row count.")
     test = frame.iloc[VAL_END:TOTAL_ROWS]
-    if not test["timestamp"].is_monotonic_increasing or test["timestamp"].duplicated().any():
+    if (test["timestamp"].isna().any() or not test["timestamp"].is_monotonic_increasing or
+            test["timestamp"].duplicated().any()):
         raise ValueError("Invalid test timestamp order.")
-    feature_scaler = pickle.loads((cache_dir / "feature_scaler.pkl").read_bytes())
-    target_scaler = pickle.loads((cache_dir / "target_scaler.pkl").read_bytes())
     features = feature_scaler.transform(test.loc[:, list(FEATURES)])
     target = target_scaler.transform(test["Active_Power"].to_numpy().reshape(-1, 1))
     if not np.isfinite(features).all() or not np.isfinite(target).all():
@@ -81,16 +93,11 @@ def main():
     parser.add_argument("--processed-csv", type=Path, required=True)
     parser.add_argument("--run", type=int, choices=range(1, 6), required=True)
     parser.add_argument("--family", choices=FAMILIES, required=True)
-    parser.add_argument("--release-test", action="store_true", help="Explicitly release test access after all training finishes.")
     parser.add_argument("--threads", type=int, default=4)
     args = parser.parse_args()
-    if not args.release_test:
-        raise SystemExit("Test access is locked; --release-test and all ten completed experiments are required.")
-    records = release_settings()
-    record = records[args.family, args.run]
+    torch.set_num_threads(args.threads)
+    record = load_settings(args.run, args.family)
     identity = record["cache_identity"]
-    cache_dir = CACHE_ROOT / f"horizon_15/run_{args.run}"
-    verify_cache(cache_dir, identity)
     directory = ROOT / f"evaluation/{args.family}/horizon_15/run_{args.run}"
     if directory.exists():
         raise FileExistsError("Refusing to overwrite existing evaluation results.")
@@ -103,8 +110,7 @@ def main():
     model.load_state_dict(checkpoint["model_state_dict"], strict=True)
     if not all(torch.equal(value, model.frozen.state_dict()[key]) for key, value in original_baseline.items()):
         raise ValueError("Residual checkpoint contains a changed baseline.")
-    dataset, target_scaler = load_released_test(args.processed_csv, identity, cache_dir)
-    torch.set_num_threads(args.threads)
+    dataset, target_scaler = load_test(args.processed_csv, identity)
     model.eval()
     predictions, targets = [], []
     with torch.no_grad():

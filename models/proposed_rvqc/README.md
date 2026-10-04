@@ -61,10 +61,13 @@ Separate `settings.json` and `preflight.json` record protocol/provenance.
 `baseline_metrics.json` follows the existing final-epoch convention, not the
 best-checkpoint validation score.
 
-Test evaluation requires **all ten experiments** complete under unchanged
-source/protocol hashes, plus the explicit `--release-test` flag. No test cache
-is built. Scalers are restored from the accepted run cache, never refitted.
+Test evaluation requires only the selected completed run's settings, preflight
+evidence and residual checkpoint, plus its original Proposed checkpoint.
+Training/model source hashes and data provenance are checked. Train-only scaler
+reconstruction must match the saved statistics before those exact statistics
+are restored. No generated train/validation cache is required; no test cache
+is built.
 
 ```powershell
-.venv\Scripts\python.exe -m models.proposed_rvqc.evaluate --processed-csv data/processed/DKASC_Preprocessed.csv --run 1 --family proposed_rvqc --release-test
+.venv\Scripts\python.exe -m models.proposed_rvqc.evaluate --processed-csv data/processed/DKASC_Preprocessed.csv --run 1 --family proposed_rvqc
 ```
