@@ -72,3 +72,54 @@ is built.
 ```powershell
 .venv\Scripts\python.exe -m models.proposed_rvqc.evaluate --processed-csv data/processed/DKASC_Preprocessed.csv --run 1 --family proposed_rvqc
 ```
+
+## Validation-only depth pilot
+
+The official branch, defaults and checkpoints remain unchanged. The isolated
+depth extension uses the official circuit directly at two blocks. Other depths
+change only the repeated block count. Common tensors and earlier quantum blocks
+have identical initialization for the same seed; epoch permutations are shared.
+
+First run the lightweight checks (four-window optimizer smoke steps, not full training):
+
+```powershell
+python -m models.proposed_rvqc.depth_preflight --processed-csv /kaggle/working/Processed.csv --run 1
+```
+
+Then launch each validation-only pilot explicitly:
+
+```powershell
+python -m models.proposed_rvqc.depth_pilot --processed-csv /kaggle/working/Processed.csv --run 1 --blocks 1
+python -m models.proposed_rvqc.depth_pilot --processed-csv /kaggle/working/Processed.csv --run 1 --blocks 2
+python -m models.proposed_rvqc.depth_pilot --processed-csv /kaggle/working/Processed.csv --run 1 --blocks 3
+python -m models.proposed_rvqc.depth_pilot --processed-csv /kaggle/working/Processed.csv --run 1 --blocks 4
+python -m models.proposed_rvqc.depth_summary
+```
+
+`--blocks 1 2 3 4` also runs depths sequentially. Use `--run 2` for seed 43
+and only the manually selected depths. For a matched control, add
+`--family proposed_rvqc_frozen`; controls are never launched automatically.
+
+Trainable outputs are `experiments/proposed_rvqc_depth_pilot/blocks_L/run_N/`;
+controls are under `experiments/proposed_rvqc_depth_pilot/frozen/blocks_L/run_N/`.
+Shared caches are isolated under `artifacts/proposed_rvqc/cache/depth_pilot/`.
+Existing pilot directories are not resumed or overwritten implicitly.
+No official results or `evaluation/` outputs are written.
+
+The bounded train/validation reconstruction and full historical baseline
+validation gate run before cache creation/training. Test rows are never read.
+Adam, cosine schedule, batch size, stopping and loss follow the official protocol;
+the first trained epoch is eligible and there is no baseline/epoch-zero fallback.
+
+`validation_metrics.json` reports the best checkpoint's metrics in
+**train-standardized target units**, matching the official residual trainer.
+Epochs are one-based. `history.json` includes each epoch's learning rate;
+`quantum_angle_analysis.json` compares initial angles with the best checkpoint,
+including each block's changes. Pilot checkpoints contain the residual branch
+state plus baseline checkpoint provenance, not a second baseline copy.
+The summary reads only completed pilot validation outputs, verifies checkpoint
+hashes, writes `depth_summary.csv`, and never ranks or selects a depth.
+Baseline columns use the frozen Proposed validation gate's measured MSE/RMSE.
+Summary deltas are pilot minus baseline; negative values indicate improvement.
+Per-block angle movement stays in `quantum_angle_analysis.json`; the CSV contains
+only overall movement and validation metrics, with no test-set columns.
