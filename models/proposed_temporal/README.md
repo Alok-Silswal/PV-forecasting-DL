@@ -16,9 +16,20 @@ positive curvature at both ends. Recent-history mode summarizes only the last
 Run validation-only Step 0:
 
 ```powershell
-python -m models.proposed_temporal.run_experiment --processed-csv data/processed/DKASC_Preprocessed.csv --seeds 42 43 44 --arms A B C --history 24
+python -m models.proposed_temporal.run_experiment --processed-csv data/processed/DKASC_Preprocessed.csv --arms A B C --history 24 --device cpu
 python -m unittest discover -s tests -v
 ```
+
+Initial screening defaults to seed 42: three A/B/C runs. Multiple seeds are
+rejected before loading data unless `--allow-multiple-seeds` explicitly enables
+later replication. The runner prints the planned run count before loading data.
+Training budgets and arm definitions are unchanged.
+The pre-training summary lists arms, seeds, run count, cache status/path, device,
+and split sizes. Add `--build-cache-only` to extract/verify without training,
+including when experiment output directories already exist. Use `--device cuda`
+for cached head training on an available GPU; extraction remains on CPU for
+consistent cache generation. CUDA is optional and unavailable devices fail
+before loading the data.
 
 Seeds 42–46 map to Proposed checkpoints in runs 1–5. The runner verifies the
 finalized reconstructed validation split against each checkpoint before training.
@@ -43,6 +54,9 @@ call only `forward_cached`, never the backbone. Projection and BatchNorm remain
 live trainable components; their outputs are not cached. No preprocessing `.pt`
 artifacts are created. `representations` and `forward_cached` remain available
 for direct use outside the runner.
+With the finalized split sizes, float32 features and targets occupy about
+1.87 GB (1.74 GiB) per checkpoint/history cache. Full fused tensors and learned
+projection outputs are not stored.
 
 Construct D/E through `get_model('proposed_temporal_e', baseline=loaded_model,
 seed=42)` (or `_d`). PennyLane is imported only for D/E. `quantum_seed` selects

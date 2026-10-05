@@ -185,7 +185,7 @@ EARLY_STOPPING_PATIENCE = 15
 RANDOM_SEED = 42
 
 # Validation-only temporal augmentation screening; classical defaults stay intact.
-TEMPORAL_SCREENING_SEEDS = (42, 43, 44)
+TEMPORAL_SCREENING_SEEDS = (42,)
 TEMPORAL_HISTORY = 24
 
 # =============================================================================

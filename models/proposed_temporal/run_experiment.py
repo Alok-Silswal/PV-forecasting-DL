@@ -76,21 +76,54 @@ def train_arm(baseline, datasets, arm, seed, history, provenance, gate, device, 
     return metrics
 
 
-def main():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--processed-csv", type=Path, required=True)
     parser.add_argument("--seeds", type=int, nargs="+", choices=range(42, 47),
-                        default=config.TEMPORAL_SCREENING_SEEDS)
+                        default=config.TEMPORAL_SCREENING_SEEDS,
+                        help="Initial screening uses one seed (default: 42).")
+    parser.add_argument("--allow-multiple-seeds", action="store_true",
+                        help="Explicitly opt into later multi-seed replication.")
     parser.add_argument("--arms", nargs="+", choices=("A", "B", "C"), default=("A", "B", "C"))
     parser.add_argument("--history", type=int, choices=(12, 24), default=config.TEMPORAL_HISTORY)
     parser.add_argument("--device", default="cpu")
-    args = parser.parse_args()
+    parser.add_argument("--build-cache-only", action="store_true",
+                        help="Prepare and validate representations without training any arm.")
+    args = parser.parse_args(argv)
+    if len(args.seeds) != 1 and not args.allow_multiple_seeds:
+        parser.error("Initial screening requires one seed. Multi-seed replication requires --allow-multiple-seeds.")
+    return args
+
+
+def print_run_summary(args, device, datasets, cache_dir, seed):
+    runs = 0 if args.build_cache_only else len(args.arms) * len(args.seeds)
+    status = "cached (pending integrity verification)" if cache_dir.exists() else "being generated"
+    print(f"Arms: {', '.join(args.arms)}\n"
+          f"Seeds: {', '.join(map(str, args.seeds))}\n"
+          f"Total training runs: {runs} ({len(args.arms)} arms × {len(args.seeds)} seeds"
+          f"{'; cache only' if args.build_cache_only else ''})\n"
+          f"Backbone representations: {status} (checkpoint for seed {seed})\n"
+          f"Device: {device} (cache extraction: cpu)\n"
+          f"Train samples: {len(datasets['train'])}\n"
+          f"Validation samples: {len(datasets['validation'])}\n"
+          f"Cache: {cache_dir}", flush=True)
+
+
+def main():
+    args = parse_args()
     if config.ACTIVE_HORIZON != "15":
         raise ValueError("Screening requires the finalized 15-minute configuration.")
     if len(set(args.seeds)) != len(args.seeds) or len(set(args.arms)) != len(args.arms):
         raise ValueError("Seeds and arms must be unique.")
+    device = torch.device(args.device)
+    if device.type not in ("cpu", "cuda"):
+        raise ValueError("Step 0 supports CPU or CUDA.")
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise ValueError("CUDA was requested but is unavailable; use --device cpu.")
+    print(f"Screening: seeds={list(args.seeds)}, arms={list(args.arms)}, "
+          f"training runs={0 if args.build_cache_only else len(args.seeds) * len(args.arms)}; validation only.")
     for seed in args.seeds:
-        for arm in args.arms:
+        for arm in (() if args.build_cache_only else args.arms):
             destination = (config.EXPERIMENTS_DIR / f"proposed_temporal_{arm.lower()}" /
                            "horizon_15" / f"history_{args.history}" / f"run_{seed - 41}")
             if destination.exists():
@@ -102,16 +135,24 @@ def main():
         baseline = FrozenBaseline(run)
         cache_dir = (config.ARTIFACT_DIR / "proposed_temporal" / "cache" /
                      f"history_{args.history}" / baseline.sha256)
+        print_run_summary(args, device, datasets, cache_dir, seed)
         cached_datasets, cache_identity = prepare_cache(
             cache_dir, baseline, datasets, args.history, provenance, config.BATCH_SIZE)
-        gate = validation_gate(CachedBaseline(baseline), cached_datasets["validation"], run)
-        if not gate["passed"]:
-            raise ValueError("Reconstructed validation does not reproduce baseline: " + json.dumps(gate))
-        for arm in args.arms:
-            metrics = train_arm(baseline, cached_datasets, arm, seed, args.history,
-                                provenance, gate, args.device, cache_identity)
-            report[f"{seed}/{arm}"] = metrics
-            print(f"seed={seed} arm={arm}: " + json.dumps(metrics))
+        try:
+            gate = validation_gate(CachedBaseline(baseline), cached_datasets["validation"], run)
+            if not gate["passed"]:
+                raise ValueError("Reconstructed validation does not reproduce baseline: " + json.dumps(gate))
+            print("Backbone representations: cached and verified", flush=True)
+            if args.build_cache_only:
+                continue
+            for arm in args.arms:
+                metrics = train_arm(baseline, cached_datasets, arm, seed, args.history,
+                                    provenance, gate, device, cache_identity)
+                report[f"{seed}/{arm}"] = metrics
+                print(f"seed={seed} arm={arm}: " + json.dumps(metrics))
+        finally:
+            for dataset in cached_datasets.values():
+                dataset.close()
     print(json.dumps({"validation_only": report}, indent=2))
 
 

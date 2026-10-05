@@ -58,6 +58,10 @@ class CachedSplit(Dataset):
     def __getitem__(self, index):
         return torch.tensor(self.features[index]), torch.tensor(self.targets[index])
 
+    def close(self):
+        self.features._mmap.close()
+        self.targets._mmap.close()
+
 
 def prepare_cache(directory, baseline, datasets, history, provenance, batch_size):
     """Publish a manifest only after complete extraction; reject stale caches."""
@@ -69,6 +73,8 @@ def prepare_cache(directory, baseline, datasets, history, provenance, batch_size
         "provenance": provenance, "torch_version": str(torch.__version__),
         "extraction_device": "cpu", "batch_size": batch_size,
         "window_counts": {split: len(dataset) for split, dataset in datasets.items()},
+        "representation_shapes": {"x": [128], "M": [3, 128], "y": [3]},
+        "dtype": "float32",
         "module_hashes": {name: file_hash(Path(__file__).with_name(name))
                           for name in ("cache.py", "model.py", "temporal.py")},
         "layout": "[x, M_level, M_trend, M_curvature] rows of width 128",
