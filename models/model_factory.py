@@ -44,6 +44,10 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
 
     model_name = model_name.lower()
 
+    if model_name == "proposed_qtm":
+        from models.proposed_qtm.model import ProposedQTM
+        return ProposedQTM(**kwargs)
+
     if model_name == "proposed":
         return ProposedModel(**kwargs)
 
@@ -78,6 +82,7 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
 
     available_models = [
         "proposed",
+        "proposed_qtm",
         "proposed_no_ta",
         "proposed_no_fa",
         "proposed_no_fusion",

@@ -18,7 +18,7 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -62,7 +62,7 @@ def _parse_args() -> argparse.Namespace:
         help=(
             "Name of the model to train (overrides config.MODEL_NAME for "
             "this run only). Supported: cnn, lstm, cnn_lstm, "
-            "dcnn_rbilstm, proposed, proposed_no_ta, proposed_no_fa, "
+            "dcnn_rbilstm, proposed, proposed_qtm, proposed_no_ta, proposed_no_fa, "
             "proposed_no_fusion, proposed_no_fa_no_ta_no_fusion."
         ),
     )
@@ -371,11 +371,15 @@ def _train_single_run() -> None:
 
     criterion = get_loss_function()
 
-    optimizer = Adam(
-        model.parameters(),
-        lr=config.LEARNING_RATE,
-        weight_decay=config.WEIGHT_DECAY,
-    )
+    if config.MODEL_NAME.lower() == "proposed_qtm":
+        optimizer = AdamW(model.optimizer_parameter_groups(
+            config.LEARNING_RATE, config.WEIGHT_DECAY, config.QTM_QUANTUM_LR_MULTIPLIER))
+    else:
+        optimizer = Adam(
+            model.parameters(),
+            lr=config.LEARNING_RATE,
+            weight_decay=config.WEIGHT_DECAY,
+        )
 
     scheduler = ReduceLROnPlateau(
         optimizer,

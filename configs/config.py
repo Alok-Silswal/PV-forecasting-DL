@@ -184,6 +184,10 @@ EARLY_STOPPING_PATIENCE = 15
 
 RANDOM_SEED = 42
 
+# Final hybrid model; existing model/optimizer defaults remain unchanged.
+QTM_QUANTUM_BACKEND = "torch"
+QTM_QUANTUM_LR_MULTIPLIER = 3.0
+
 # =============================================================================
 # DCNN Architecture
 # =============================================================================
