@@ -44,6 +44,11 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
 
     model_name = model_name.lower()
 
+    branch_names = {f"proposed_branch_qfa_{arm.lower()}": arm for arm in "ABCDE"}
+    if model_name in branch_names:
+        from models.proposed_branch_qfa.model import BranchAugmentationModel
+        return BranchAugmentationModel(arm=branch_names[model_name], **kwargs)
+
     if model_name == "proposed":
         return ProposedModel(**kwargs)
 
@@ -86,6 +91,7 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "lstm",
         "cnn_lstm",
         "dcnn_rbilstm",
+        *branch_names,
     ]
 
     raise ValueError(

@@ -184,6 +184,9 @@ EARLY_STOPPING_PATIENCE = 15
 
 RANDOM_SEED = 42
 
+# Branch-aware screening is validation-only and starts with one seed.
+BRANCH_QFA_SCREENING_SEEDS = (42,)
+
 # =============================================================================
 # DCNN Architecture
 # =============================================================================
