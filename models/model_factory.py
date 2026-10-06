@@ -44,11 +44,6 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
 
     model_name = model_name.lower()
 
-    temporal_names = {f"proposed_temporal_{arm.lower()}": arm for arm in "ABCDE"}
-    if model_name in temporal_names:
-        from models.proposed_temporal.model import TemporalAugmentationModel
-        return TemporalAugmentationModel(arm=temporal_names[model_name], **kwargs)
-
     if model_name == "proposed":
         return ProposedModel(**kwargs)
 
@@ -91,7 +86,6 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
         "lstm",
         "cnn_lstm",
         "dcnn_rbilstm",
-        *temporal_names,
     ]
 
     raise ValueError(
