@@ -86,5 +86,50 @@ evaluation/**/_smoke/
 experiments/**/_benchmark/
 evaluation/**/_benchmark/
 
-## Keep project artifacts, checkpoints, and evaluation outputs tracked in Git.
-## Do not add ignore rules for history.json, training.log, *.pth, results, or processed datasets here.
+
+# ==========================================
+# LARGE GENERATED EXPERIMENT ARTIFACTS
+# ==========================================
+
+# Cached training/validation arrays and scalers
+/artifacts/**/cache/
+
+# Generated NumPy arrays and serialized objects
+# inside the artifacts directory
+/artifacts/**/*.npy
+/artifacts/**/*.npz
+/artifacts/**/*.pkl
+/artifacts/**/*.pickle
+/artifacts/**/*.joblib
+
+# ==========================================
+# MODEL CHECKPOINTS
+# ==========================================
+
+# Ignore all generated training checkpoints
+# across experiments
+/experiments/**/checkpoints/
+
+# ==========================================
+# LARGE EVALUATION PREDICTION FILES
+# ==========================================
+
+# Compressed prediction arrays
+/evaluation/**/predictions.npz
+
+# Full per-sample prediction CSVs
+/evaluation/**/baseline_predictions.csv
+/evaluation/**/classical_predictions.csv
+/evaluation/**/quantum_predictions.csv
+
+# ==========================================
+# KAGGLE TEMPORARY OUTPUTS
+# ==========================================
+
+/kaggle/working/
+/outputs/
+/tensorboard/
+
+## Keep lightweight experiment metadata, metrics, histories,
+## configurations and training logs tracked in Git.
+## Store large checkpoints, arrays and predictions externally.
