@@ -1,0 +1,143 @@
+{
+  "baseline": {
+    "rmse": 11.034017364532746,
+    "mae": 4.271579237617764,
+    "r2": 0.9692110244334584,
+    "nrmse": 0.0483914689358127,
+    "mse": 121.74953920081018,
+    "nrmse_denominator": 228.01575581779636,
+    "nrmse_definition": "aggregate RMSE / (max shared target - min shared target), all horizons flattened",
+    "horizons": [
+      {
+        "steps": 1,
+        "minutes": 5,
+        "mse": 88.33548278471915,
+        "rmse": 9.398695802329128,
+        "mae": 3.495972819835987
+      },
+      {
+        "steps": 2,
+        "minutes": 10,
+        "mse": 125.52183733978549,
+        "rmse": 11.203652856983096,
+        "mae": 4.2832112481559985
+      },
+      {
+        "steps": 3,
+        "minutes": 15,
+        "mse": 151.39129747792597,
+        "rmse": 12.304117094612112,
+        "mae": 5.035553644861306
+      }
+    ],
+    "correction": {
+      "mean": 0.0,
+      "std": 0.0,
+      "mean_absolute": 0.0,
+      "rms": 0.0,
+      "p95_absolute": 0.0,
+      "max_absolute": 0.0
+    }
+  },
+  "classical": {
+    "rmse": 11.043376396618719,
+    "mae": 4.217203775821283,
+    "r2": 0.9691587719841541,
+    "nrmse": 0.04843251448572396,
+    "mse": 121.95616223739545,
+    "nrmse_denominator": 228.01575581779636,
+    "nrmse_definition": "aggregate RMSE / (max shared target - min shared target), all horizons flattened",
+    "horizons": [
+      {
+        "steps": 1,
+        "minutes": 5,
+        "mse": 87.76499185768503,
+        "rmse": 9.36829716958664,
+        "mae": 3.390214410325194
+      },
+      {
+        "steps": 2,
+        "minutes": 10,
+        "mse": 126.99524047708826,
+        "rmse": 11.269216497924257,
+        "mae": 4.341128509296623
+      },
+      {
+        "steps": 3,
+        "minutes": 15,
+        "mse": 151.10825437741312,
+        "rmse": 12.292609746405079,
+        "mae": 4.92026840784203
+      }
+    ],
+    "correction": {
+      "mean": 0.35583996766527826,
+      "std": 0.965853940144996,
+      "mean_absolute": 0.6280534516632803,
+      "rms": 1.0293181802929743,
+      "p95_absolute": 2.197275276344747,
+      "max_absolute": 12.276778986111893
+    },
+    "relative_to_baseline": {
+      "rmse": {
+        "absolute_difference": 0.009359032085972885,
+        "percentage_difference": 0.08481980566802569
+      },
+      "mae": {
+        "absolute_difference": -0.05437546179648045,
+        "percentage_difference": -1.2729592212084389
+      }
+    }
+  },
+  "quantum": {
+    "rmse": 11.046455561032857,
+    "mae": 4.1766019815119275,
+    "r2": 0.9691415710036388,
+    "nrmse": 0.048446018659604816,
+    "mse": 122.02418046187375,
+    "nrmse_denominator": 228.01575581779636,
+    "nrmse_definition": "aggregate RMSE / (max shared target - min shared target), all horizons flattened",
+    "horizons": [
+      {
+        "steps": 1,
+        "minutes": 5,
+        "mse": 87.8275472120065,
+        "rmse": 9.37163524749051,
+        "mae": 3.36194973384758
+      },
+      {
+        "steps": 2,
+        "minutes": 10,
+        "mse": 127.01802068916184,
+        "rmse": 11.270227180015576,
+        "mae": 4.266638584430929
+      },
+      {
+        "steps": 3,
+        "minutes": 15,
+        "mse": 151.2269734844529,
+        "rmse": 12.297437679632814,
+        "mae": 4.901217626257276
+      }
+    ],
+    "correction": {
+      "mean": 0.39424247969439186,
+      "std": 1.1646015927142321,
+      "mean_absolute": 0.7262205515691864,
+      "rms": 1.2295218593209756,
+      "p95_absolute": 2.5313138787602867,
+      "max_absolute": 20.39006973394835
+    },
+    "relative_to_baseline": {
+      "rmse": {
+        "absolute_difference": 0.012438196500111687,
+        "percentage_difference": 0.11272591014848746
+      },
+      "mae": {
+        "absolute_difference": -0.09497725610583618,
+        "percentage_difference": -2.22346937332724
+      }
+    }
+  }
+}
+

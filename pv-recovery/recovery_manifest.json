@@ -1,0 +1,67 @@
+{
+  "Source": "C:\\Users\\silsw\\OneDrive\\Desktop\\PV-forecasting\\notebooks\\pv-forecasting-dl.ipynb",
+  "SourceSHA256": "398AAD959045A09A9C519C782D9922F72327A9860B3806A019E5AC89212DD149",
+  "Recovery": "Extracted saved cell outputs only; notebook was not executed. Original checkpoints, prediction arrays, histories and settings are not reconstructed.",
+  "Runs": [
+    {
+      "Run": 1,
+      "TrainingCellZeroBased": 10,
+      "EvaluationCellZeroBased": 11,
+      "SelectedEpochsInPrintedOrder": [
+        "15",
+        "31"
+      ],
+      "BaselineRMSE": 11.034017364532746,
+      "ClassicalRMSE": 11.043376396618719,
+      "QuantumRMSE": 11.046455561032857
+    },
+    {
+      "Run": 2,
+      "TrainingCellZeroBased": 12,
+      "EvaluationCellZeroBased": 13,
+      "SelectedEpochsInPrintedOrder": [
+        "41",
+        "24"
+      ],
+      "BaselineRMSE": 10.86555668790358,
+      "ClassicalRMSE": 10.895394575395889,
+      "QuantumRMSE": 10.884089589455035
+    },
+    {
+      "Run": 3,
+      "TrainingCellZeroBased": 14,
+      "EvaluationCellZeroBased": 15,
+      "SelectedEpochsInPrintedOrder": [
+        "3",
+        "3"
+      ],
+      "BaselineRMSE": 10.877750129816675,
+      "ClassicalRMSE": 10.895141165435033,
+      "QuantumRMSE": 10.900297929089984
+    },
+    {
+      "Run": 4,
+      "TrainingCellZeroBased": 16,
+      "EvaluationCellZeroBased": 17,
+      "SelectedEpochsInPrintedOrder": [
+        "7",
+        "7"
+      ],
+      "BaselineRMSE": 10.982371446419958,
+      "ClassicalRMSE": 10.984498773935286,
+      "QuantumRMSE": 10.987144259642024
+    },
+    {
+      "Run": 5,
+      "TrainingCellZeroBased": 18,
+      "EvaluationCellZeroBased": 19,
+      "SelectedEpochsInPrintedOrder": [
+        "38",
+        "25"
+      ],
+      "BaselineRMSE": 10.949131759398899,
+      "ClassicalRMSE": 10.983739295163657,
+      "QuantumRMSE": 10.977988489812603
+    }
+  ]
+}

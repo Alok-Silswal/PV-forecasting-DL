@@ -1,0 +1,74 @@
+{
+  "arms": [
+    "unchanged baseline",
+    "classical",
+    "quantum"
+  ],
+  "seed": 44,
+  "correction_training_runs": 2,
+  "cache_status": "being generated",
+  "cache_path": "/kaggle/working/PV-forecasting-DL/artifacts/controlled_residual/cache/horizon_15/run_3",
+  "device": "cuda",
+  "backend": "torch",
+  "sample_counts": {
+    "train": 745676,
+    "validation": 159767
+  },
+  "checkpoint": "/kaggle/working/PV-forecasting-DL/experiments/proposed/horizon_15/run_3/checkpoints/best_checkpoint.pt"
+}
+{
+  "arms": [
+    "A: unchanged pretrained",
+    "B: classical",
+    "C: quantum"
+  ],
+  "run": 3,
+  "seed": 44,
+  "correction_training_runs": 2,
+  "cache_status": "generated",
+  "cache_path": "/kaggle/working/PV-forecasting-DL/artifacts/controlled_residual/cache/horizon_15/run_3",
+  "checkpoint": "/kaggle/working/PV-forecasting-DL/experiments/proposed/horizon_15/run_3/checkpoints/best_checkpoint.pt",
+  "device": "cuda",
+  "backend": "torch",
+  "train_samples": 745676,
+  "validation_samples": 159767
+}
+2026-10-11 20:55:50 | INFO | Epoch 1 | train MSE 0.0225625 | val MSE 0.0244290 | RMSE 0.1562978 | MAE 0.0534675 | selected 1
+2026-10-11 20:55:57 | INFO | Epoch 2 | train MSE 0.0225147 | val MSE 0.0244297 | RMSE 0.1562999 | MAE 0.0537392 | selected 1
+2026-10-11 20:56:05 | INFO | Epoch 3 | train MSE 0.0224702 | val MSE 0.0244108 | RMSE 0.1562395 | MAE 0.0533347 | selected 3
+2026-10-11 20:56:12 | INFO | Epoch 4 | train MSE 0.0224549 | val MSE 0.0244314 | RMSE 0.1563055 | MAE 0.0544397 | selected 3
+2026-10-11 20:56:18 | INFO | Epoch 5 | train MSE 0.0224470 | val MSE 0.0244278 | RMSE 0.1562939 | MAE 0.0532033 | selected 3
+2026-10-11 20:56:26 | INFO | Epoch 6 | train MSE 0.0224392 | val MSE 0.0244534 | RMSE 0.1563757 | MAE 0.0540247 | selected 3
+2026-10-11 20:56:33 | INFO | Epoch 7 | train MSE 0.0224317 | val MSE 0.0244495 | RMSE 0.1563634 | MAE 0.0538055 | selected 3
+2026-10-11 20:56:40 | INFO | Epoch 8 | train MSE 0.0224255 | val MSE 0.0244373 | RMSE 0.1563244 | MAE 0.0542796 | selected 3
+2026-10-11 20:56:47 | INFO | Epoch 9 | train MSE 0.0224191 | val MSE 0.0244650 | RMSE 0.1564129 | MAE 0.0546930 | selected 3
+2026-10-11 20:56:54 | INFO | Epoch 10 | train MSE 0.0224136 | val MSE 0.0244394 | RMSE 0.1563312 | MAE 0.0535094 | selected 3
+2026-10-11 20:57:01 | INFO | Epoch 11 | train MSE 0.0224140 | val MSE 0.0244527 | RMSE 0.1563735 | MAE 0.0538910 | selected 3
+2026-10-11 20:57:08 | INFO | Epoch 12 | train MSE 0.0224070 | val MSE 0.0244607 | RMSE 0.1563993 | MAE 0.0544053 | selected 3
+2026-10-11 20:57:15 | INFO | Epoch 13 | train MSE 0.0224069 | val MSE 0.0244188 | RMSE 0.1562653 | MAE 0.0539181 | selected 3
+2026-10-11 20:57:22 | INFO | Epoch 14 | train MSE 0.0224039 | val MSE 0.0244243 | RMSE 0.1562828 | MAE 0.0538638 | selected 3
+2026-10-11 20:57:29 | INFO | Epoch 15 | train MSE 0.0224015 | val MSE 0.0244762 | RMSE 0.1564486 | MAE 0.0539984 | selected 3
+2026-10-11 20:57:37 | INFO | Epoch 16 | train MSE 0.0224031 | val MSE 0.0244529 | RMSE 0.1563744 | MAE 0.0545553 | selected 3
+2026-10-11 20:57:43 | INFO | Epoch 17 | train MSE 0.0223997 | val MSE 0.0244833 | RMSE 0.1564714 | MAE 0.0543153 | selected 3
+2026-10-11 20:57:50 | INFO | Epoch 18 | train MSE 0.0223984 | val MSE 0.0244486 | RMSE 0.1563606 | MAE 0.0533469 | selected 3
+2026-10-11 20:57:50 | INFO | Selected epoch 3
+2026-10-11 20:59:34 | INFO | Epoch 1 | train MSE 0.0225677 | val MSE 0.0244365 | RMSE 0.1563217 | MAE 0.0536751 | selected 1
+2026-10-11 21:01:13 | INFO | Epoch 2 | train MSE 0.0224775 | val MSE 0.0244416 | RMSE 0.1563382 | MAE 0.0539638 | selected 1
+2026-10-11 21:02:52 | INFO | Epoch 3 | train MSE 0.0224494 | val MSE 0.0244022 | RMSE 0.1562119 | MAE 0.0534893 | selected 3
+2026-10-11 21:04:32 | INFO | Epoch 4 | train MSE 0.0224278 | val MSE 0.0244096 | RMSE 0.1562359 | MAE 0.0536582 | selected 3
+2026-10-11 21:06:14 | INFO | Epoch 5 | train MSE 0.0224111 | val MSE 0.0244319 | RMSE 0.1563072 | MAE 0.0539828 | selected 3
+2026-10-11 21:07:53 | INFO | Epoch 6 | train MSE 0.0223958 | val MSE 0.0244235 | RMSE 0.1562803 | MAE 0.0535112 | selected 3
+2026-10-11 21:09:33 | INFO | Epoch 7 | train MSE 0.0223855 | val MSE 0.0244324 | RMSE 0.1563088 | MAE 0.0533547 | selected 3
+2026-10-11 21:11:12 | INFO | Epoch 8 | train MSE 0.0223792 | val MSE 0.0244213 | RMSE 0.1562733 | MAE 0.0530533 | selected 3
+2026-10-11 21:12:52 | INFO | Epoch 9 | train MSE 0.0223676 | val MSE 0.0244443 | RMSE 0.1563467 | MAE 0.0531281 | selected 3
+2026-10-11 21:14:31 | INFO | Epoch 10 | train MSE 0.0223596 | val MSE 0.0244381 | RMSE 0.1563270 | MAE 0.0535518 | selected 3
+2026-10-11 21:16:10 | INFO | Epoch 11 | train MSE 0.0223595 | val MSE 0.0244529 | RMSE 0.1563744 | MAE 0.0541624 | selected 3
+2026-10-11 21:17:50 | INFO | Epoch 12 | train MSE 0.0223485 | val MSE 0.0244449 | RMSE 0.1563488 | MAE 0.0543068 | selected 3
+2026-10-11 21:19:30 | INFO | Epoch 13 | train MSE 0.0223457 | val MSE 0.0244169 | RMSE 0.1562591 | MAE 0.0533302 | selected 3
+2026-10-11 21:21:11 | INFO | Epoch 14 | train MSE 0.0223384 | val MSE 0.0244083 | RMSE 0.1562314 | MAE 0.0529153 | selected 3
+2026-10-11 21:22:51 | INFO | Epoch 15 | train MSE 0.0223304 | val MSE 0.0245000 | RMSE 0.1565248 | MAE 0.0538515 | selected 3
+2026-10-11 21:24:32 | INFO | Epoch 16 | train MSE 0.0223297 | val MSE 0.0244456 | RMSE 0.1563508 | MAE 0.0536103 | selected 3
+2026-10-11 21:26:11 | INFO | Epoch 17 | train MSE 0.0223265 | val MSE 0.0244686 | RMSE 0.1564244 | MAE 0.0537701 | selected 3
+2026-10-11 21:27:51 | INFO | Epoch 18 | train MSE 0.0223229 | val MSE 0.0244089 | RMSE 0.1562335 | MAE 0.0531177 | selected 3
+2026-10-11 21:27:51 | INFO | Selected epoch 3
+
