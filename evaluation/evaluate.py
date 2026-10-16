@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 from configs import config
 from evaluation.evaluator import Evaluator
 from evaluation.plots import EvaluationPlotter
-from models.model_factory import get_model
+from models.model_factory import MODEL_NAMES, get_model
 
 
 def _parse_args() -> argparse.Namespace:
@@ -50,9 +50,7 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help=(
         "Name of the model to evaluate (overrides config.MODEL_NAME "
-        "for this run only). Example: cnn, lstm, cnn_lstm, proposed, "
-        "proposed_no_fa, proposed_no_ta, proposed_no_fusion, "
-        "proposed_no_fa_no_ta_no_fusion."
+        "for this run only). Supported: " + ", ".join(MODEL_NAMES)
     ),
     )
     parser.add_argument(

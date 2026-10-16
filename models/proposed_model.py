@@ -1,165 +1,60 @@
-"""
-Complete hybrid architecture for short-term photovoltaic (PV) power forecasting.
+"""Complete jointly trained quantum/classical residual forecasters."""
 
-Classical architecture
------------------------
-Input
-│
-├── DCNN ───────────────► Feature Attention
-│
-└── Residual BiLSTM ───► Temporal Attention
-             │
-             ▼
-      Scalar Gated Fusion
-             │
-             ▼
-        Shallow MLP Head
-             │
-             ▼
-      PV Power Prediction
-
-"""
-
-import torch.nn as nn
-
+import math
+import torch
+from torch import Tensor, nn
 from configs import config
-
-from models.dcnn import DCNN
-from models.feature_attention import FeatureAttention
-from models.residual_bilstm import ResidualBiLSTM
-from models.temporal_attention import TemporalAttention
-from models.scalar_gated_fusion import ScalarGatedFusion
-from models.mlp_head import MLPHead
-
-from torch import Tensor
+from models.proposed_no_quantum import ProposedNoQuantum
+from models.quantum_simulator import RVQCSimulator
 
 
-class ProposedModel(nn.Module):
-    """Complete hybrid PV forecasting model."""
-
-    def __init__(
-        self,
-        dcnn_filters: int | None = None,
-        dcnn_kernel_size: int | None = None,
-        dcnn_dilation_rate: int | None = None,
-        dcnn_dropout_rate: float | None = None,
-        bilstm_hidden_size: int | None = None,
-        bilstm_dropout_rate: float | None = None,
-        mlp_hidden_dim: int | None = None,
-        mlp_dropout_rate: float | None = None,
-        use_feature_attention: bool = True,
-        use_temporal_attention: bool = True,
-        use_scalar_gated_fusion: bool = True,
-    ) -> None:
-
+class ResidualForecast(nn.Module):
+    def __init__(self, kind: str = "quantum", seed: int | None = None) -> None:
         super().__init__()
+        if kind not in ("quantum", "classical"):
+            raise ValueError("kind must be quantum or classical.")
+        if (config.NUM_FEATURES, config.LOOKBACK, config.BILSTM_HIDDEN_SIZE,
+                config.MLP_HIDDEN_DIM, config.ACTIVE_HORIZON) != (7, 24, 64, 64, "15"):
+            raise ValueError("Residual forecasters require [B,24,7], width 128, head 64 and horizon 15.")
+        seed = config.RANDOM_SEED + config.RUN_NUMBER - 1 if seed is None else seed
+        self.architecture_id = f"residual_{kind}_v1"
+        self.kind = kind
+        # Construction order cannot change paired backbone/head initialization.
+        with torch.random.fork_rng(devices=[]):
+            torch.random.default_generator.manual_seed(seed)
+            self.backbone = ProposedNoQuantum()
+            self.projection = nn.Linear(128, 6)
+            self.readout = nn.Linear(6, 3)
+            if kind == "classical":
+                torch.random.default_generator.manual_seed(seed + 11000)
+                self.transform = nn.Linear(6, 6)
+        generator = torch.Generator().manual_seed(seed)
+        with torch.no_grad():
+            bound = 1 / math.sqrt(128)
+            self.projection.weight.uniform_(-bound, bound, generator=generator)
+            self.projection.bias.uniform_(-bound, bound, generator=generator)
+            self.readout.weight.zero_()
+            self.readout.bias.zero_()
+        if kind == "quantum":
+            generator = torch.Generator().manual_seed(seed + 10000)
+            self.quantum_angles = nn.Parameter(
+                torch.empty(2, 6, 2).uniform_(-0.1, 0.1, generator=generator))
+            self.simulator = RVQCSimulator()
 
-        self.use_feature_attention = use_feature_attention
-        self.use_temporal_attention = use_temporal_attention
-        self.use_scalar_gated_fusion = use_scalar_gated_fusion
+    def forward_components(self, inputs: Tensor) -> dict[str, Tensor]:
+        if inputs.ndim != 3 or inputs.shape[1:] != (24, 7):
+            raise ValueError("Expected input [B,24,7].")
+        pooled = self.backbone.forward_features(inputs)
+        base = self.backbone.mlp_head(pooled)
+        with torch.autocast(device_type=inputs.device.type, enabled=False):
+            theta = math.pi * torch.tanh(self.projection(pooled.float()))
+            if self.kind == "quantum":
+                features = self.simulator(theta, self.quantum_angles)
+            else:
+                features = torch.tanh(self.transform(theta))
+            correction = self.readout(features)
+        return {"pooled": pooled, "base": base, "correction": correction,
+                "final": base + correction}
 
-        # Any parameter left as None falls back to config.py, preserving
-        # ProposedModel() as fully equivalent to prior behavior.
-        dcnn_filters = dcnn_filters if dcnn_filters is not None else config.DCNN_FILTERS
-        dcnn_kernel_size = dcnn_kernel_size if dcnn_kernel_size is not None else config.DCNN_KERNEL_SIZE
-        dcnn_dilation_rate = dcnn_dilation_rate if dcnn_dilation_rate is not None else config.DCNN_DILATION_RATE
-        dcnn_dropout_rate = dcnn_dropout_rate if dcnn_dropout_rate is not None else config.DCNN_DROPOUT_RATE
-        bilstm_hidden_size = bilstm_hidden_size if bilstm_hidden_size is not None else config.BILSTM_HIDDEN_SIZE
-        bilstm_dropout_rate = bilstm_dropout_rate if bilstm_dropout_rate is not None else config.BILSTM_DROPOUT_RATE
-        mlp_hidden_dim = mlp_hidden_dim if mlp_hidden_dim is not None else config.MLP_HIDDEN_DIM
-        mlp_dropout_rate = mlp_dropout_rate if mlp_dropout_rate is not None else config.MLP_DROPOUT_RATE
-
-        # ------------------------------------------------------------
-        # Spatial Branch
-        # ------------------------------------------------------------
-        self.dcnn = DCNN(
-            input_channels=config.NUM_FEATURES,
-            num_filters=dcnn_filters,
-            kernel_size=dcnn_kernel_size,
-            dilation_rate=dcnn_dilation_rate,
-            dropout_rate=dcnn_dropout_rate,
-        )
-
-        self.feature_attention = FeatureAttention(
-            num_features=dcnn_filters,
-            reduction_ratio=config.FEATURE_ATTENTION_REDUCTION,
-        )
-
-        # ------------------------------------------------------------
-        # Temporal Branch
-        # ------------------------------------------------------------
-        self.residual_bilstm = ResidualBiLSTM(
-            input_size=config.NUM_FEATURES,
-            hidden_size=bilstm_hidden_size,
-            dropout_rate=bilstm_dropout_rate,
-        )
-
-        self.temporal_attention = TemporalAttention(
-            embedding_dim=bilstm_hidden_size * 2,
-        )
-
-        # ------------------------------------------------------------
-        # Fusion
-        # ------------------------------------------------------------
-        self.scalar_gated_fusion = ScalarGatedFusion(
-            spatial_dim=dcnn_filters,
-            temporal_dim=bilstm_hidden_size * 2,
-        )
-
-        # ------------------------------------------------------------
-        # Prediction Head
-        # ------------------------------------------------------------
-        self.mlp_head = MLPHead(
-            input_dim=bilstm_hidden_size * 2,
-            hidden_dim=mlp_hidden_dim,
-            output_dim=config.HORIZON_TO_OUTPUT_DIM[config.ACTIVE_HORIZON],
-            dropout_rate=mlp_dropout_rate,
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-
-        # ---------------- Spatial Branch ----------------
-
-        spatial_features = self.dcnn(x)
-
-        if self.use_feature_attention:
-            spatial_features = self.feature_attention(
-                spatial_features
-            )
-
-        # ---------------- Temporal Branch ----------------
-
-        temporal_features = self.residual_bilstm(x)
-
-        if self.use_temporal_attention:
-            temporal_features = self.temporal_attention(
-                temporal_features
-            )
-
-        # ---------------- Fusion ----------------
-
-        if self.use_scalar_gated_fusion:
-            fused_features = self.scalar_gated_fusion(
-                spatial_features,
-                temporal_features,
-            )
-        else:
-            # Reuses ScalarGatedFusion's own spatial_projection so the
-            # spatial branch is still mapped into temporal_dim
-            # (bilstm_hidden_size * 2) exactly as under gated fusion —
-            # only the learned gate is removed, replaced with a fixed
-            # 0.5 / 0.5 average.
-            projected_spatial = self.scalar_gated_fusion.spatial_projection(
-                spatial_features
-            )
-            fused_features = (
-                0.5 * projected_spatial + 0.5 * temporal_features
-            )
-
-        # ---------------- Classical Prediction (unchanged) ----------------
-
-        classical_prediction = self.mlp_head(
-            fused_features
-        )
-
-        return classical_prediction
+    def forward(self, inputs: Tensor) -> Tensor:
+        return self.forward_components(inputs)["final"]

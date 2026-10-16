@@ -1,5 +1,5 @@
 Horizon,Metric,Model,Average Rank
-horizon_15,mae,proposed,2.2
+horizon_15,mae,proposed_no_quantum,2.2
 horizon_15,mae,proposed_no_fa,2.2
 horizon_15,mae,proposed_no_fusion,2.8
 horizon_15,mae,proposed_phn,3.0
@@ -15,9 +15,9 @@ horizon_15,mape,proposed_no_ta,4.2
 horizon_15,mape,cnn,5.6
 horizon_15,mape,cnn_lstm,5.8
 horizon_15,mape,dcnn_rbilstm,7.2
-horizon_15,mape,proposed,7.4
+horizon_15,mape,proposed_no_quantum,7.4
 horizon_15,mape,lstm,8.4
-horizon_15,nrmse,proposed,2.0
+horizon_15,nrmse,proposed_no_quantum,2.0
 horizon_15,nrmse,proposed_no_fusion,2.8
 horizon_15,nrmse,proposed_phn,2.8
 horizon_15,nrmse,proposed_no_fa,3.4
@@ -26,7 +26,7 @@ horizon_15,nrmse,dcnn_rbilstm,5.4
 horizon_15,nrmse,lstm,6.4
 horizon_15,nrmse,proposed_no_ta,8.0
 horizon_15,nrmse,cnn,9.0
-horizon_15,r2,proposed,2.0
+horizon_15,r2,proposed_no_quantum,2.0
 horizon_15,r2,proposed_no_fusion,2.8
 horizon_15,r2,proposed_phn,2.8
 horizon_15,r2,proposed_no_fa,3.4
@@ -35,7 +35,7 @@ horizon_15,r2,dcnn_rbilstm,5.4
 horizon_15,r2,lstm,6.4
 horizon_15,r2,proposed_no_ta,8.0
 horizon_15,r2,cnn,9.0
-horizon_15,rmse,proposed,2.0
+horizon_15,rmse,proposed_no_quantum,2.0
 horizon_15,rmse,proposed_no_fusion,2.8
 horizon_15,rmse,proposed_phn,2.8
 horizon_15,rmse,proposed_no_fa,3.4

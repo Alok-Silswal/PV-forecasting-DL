@@ -62,20 +62,11 @@ data/raw/
 data/processed/
 
 # Generated preprocessing artifacts
-artifacts/train_15.pt
-artifacts/val_15.pt
-artifacts/test_15.pt
-
-artifacts/train_60.pt
-artifacts/val_60.pt
-artifacts/test_60.pt
+/artifacts/**/*.pt
 
 artifacts/feature_scaler.pkl
 artifacts/target_scaler.pkl
 artifacts/preprocessing_config.json
-
-# Frozen Proposed residual train/validation caches
-artifacts/proposed_rvqc/cache/
 
 # Local compressed processed dataset
 notebooks/DKASC_Preprocessed.csv.gz
@@ -108,14 +99,18 @@ evaluation/**/_benchmark/
 
 # Ignore all generated training checkpoints
 # across experiments
-/experiments/**/checkpoints/
+/experiments/**/checkpoints/*
+!/experiments/proposed_no_quantum/horizon_15/run_[1-5]/checkpoints/best_checkpoint.pt
 
 # ==========================================
 # LARGE EVALUATION PREDICTION FILES
 # ==========================================
 
 # Compressed prediction arrays
-/evaluation/**/predictions.npz
+/evaluation/**/*.npy
+/evaluation/**/*.npz
+/evaluation/**/predictions.csv
+!/evaluation/proposed_no_quantum/horizon_15/run_[1-5]/results/predictions.csv
 
 # Full per-sample prediction CSVs
 /evaluation/**/baseline_predictions.csv
