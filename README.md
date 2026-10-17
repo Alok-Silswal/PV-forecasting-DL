@@ -1,16 +1,15 @@
 # PV forecasting
 
 - `proposed`: jointly trained original backbone/head plus a quantum residual.
-- `proposed_classical`: the same backbone/head plus a classical residual control.
 - `proposed_no_quantum`: the preserved original Proposed model; historical
   results now live under this name. Its ablations keep their existing identities.
 - `tcn`: causal 32-channel residual blocks, dilations 1/2/4, receptive field 29.
 
-The residual pair uses pooled fusion [B,128], the existing 128-64-3 head,
+The quantum residual model uses pooled fusion [B,128], the existing 128-64-3 head,
 and a parallel 128-6 projection followed by pi*tanh and a 6-3 correction readout.
 The quantum branch has two repeated RY/RZ/RY encoding/rotation blocks and the
-ordered CNOT ring 0-1-2-3-4-5-0. The classical control uses Linear(6,6) and tanh.
-Readouts start at zero; upstream correction gradients start at zero and become
+ordered CNOT ring 0-1-2-3-4-5-0.
+The readout starts at zero; upstream correction gradients start at zero and become
 active after readout updates. Everything is trained jointly with the existing
 comparison-model Adam policy, trainer, loss and run seeds. PennyLane is optional;
 the active simulator uses batched float32/complex64 PyTorch on CPU or CUDA.
@@ -28,8 +27,6 @@ From the repository root, run 1 uses the existing training and evaluation CLIs:
 ```bash
 python main.py proposed --horizon 15 --run1
 python -m evaluation.evaluate --model proposed --horizon 15 --run 1
-python main.py proposed_classical --horizon 15 --run1
-python -m evaluation.evaluate --model proposed_classical --horizon 15 --run 1
 python main.py tcn --horizon 15 --run1
 python -m evaluation.evaluate --model tcn --horizon 15 --run 1
 ```

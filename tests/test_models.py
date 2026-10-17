@@ -42,6 +42,7 @@ class ModelTests(unittest.TestCase):
         torch.set_num_threads(2)
         cls.original = reference_class("496c26d", "models/proposed_model.py", "ProposedModel")
         cls.backbone_reference = reference_class("671df7e", "models/backbone.py", "ForecastBackbone")
+        cls.quantum_reference = reference_class("994ccaa", "models/proposed_model.py", "ResidualForecast")
 
     def test_factory_and_preserved_original(self):
         inputs = torch.randn(3, 24, 7)
@@ -71,68 +72,72 @@ class ModelTests(unittest.TestCase):
             for key, value in old.state_dict().items():
                 self.assertTrue(torch.equal(value, renamed.state_dict()[key]), key)
 
-    def test_paired_reference_initialization(self):
+    def test_quantum_reference_initialization_and_checkpoint(self):
         for run in range(1, 6):
             seed = config.RANDOM_SEED + run - 1
             with patch.object(config, "RUN_NUMBER", run):
                 before = torch.get_rng_state().clone()
-                quantum, classical = get_model("proposed"), get_model("proposed_classical")
+                quantum = get_model("proposed")
+                previous = self.quantum_reference()
                 self.assertTrue(torch.equal(before, torch.get_rng_state()))
+            self.assertEqual(list(quantum.state_dict()), list(previous.state_dict()))
+            self.assertEqual(quantum.architecture_id, previous.architecture_id)
+            for key, value in quantum.state_dict().items():
+                self.assertTrue(torch.equal(value, previous.state_dict()[key]), key)
             with torch.random.fork_rng(devices=[]):
                 torch.random.default_generator.manual_seed(seed)
                 backbone = self.backbone_reference()
-                torch.random.default_generator.manual_seed(seed + 11000)
-                transform = torch.nn.Linear(6, 6)
             for key, value in quantum.backbone.state_dict().items():
-                self.assertTrue(torch.equal(value, classical.backbone.state_dict()[key]), key)
                 self.assertTrue(torch.equal(value, backbone.state_dict()[key]), key)
-            for key, value in transform.state_dict().items():
-                self.assertTrue(torch.equal(value, classical.transform.state_dict()[key]), key)
             generator = torch.Generator().manual_seed(seed)
             for name in ("weight", "bias"):
                 value = getattr(quantum.projection, name)
                 expected = torch.empty_like(value).uniform_(-1 / math.sqrt(128), 1 / math.sqrt(128), generator=generator)
                 self.assertTrue(torch.equal(value, expected))
-                self.assertTrue(torch.equal(value, getattr(classical.projection, name)))
             expected_angles = torch.empty(2, 6, 2).uniform_(
                 -0.1, 0.1, generator=torch.Generator().manual_seed(seed + 10000))
             self.assertTrue(torch.equal(quantum.quantum_angles, expected_angles))
-            for model in (quantum, classical):
-                self.assertEqual(model.readout.weight.count_nonzero().item(), 0)
-                self.assertEqual(model.readout.bias.count_nonzero().item(), 0)
-                parts = model.eval().forward_components(torch.ones(2, 24, 7))
-                self.assertEqual(parts["pooled"].shape, (2, 128))
-                self.assertTrue(torch.equal(parts["final"], parts["base"]))
+            self.assertEqual(quantum.readout.weight.count_nonzero().item(), 0)
+            self.assertEqual(quantum.readout.bias.count_nonzero().item(), 0)
+            parts = quantum.eval().forward_components(torch.ones(2, 24, 7))
+            self.assertEqual(parts["pooled"].shape, (2, 128))
+            self.assertTrue(torch.equal(parts["final"], parts["base"]))
+            quantum.load_state_dict(previous.state_dict(), strict=True)
+            with torch.no_grad():
+                quantum.readout.weight.fill_(0.1)
+                quantum.readout.bias.fill_(0.2)
+            previous.load_state_dict(quantum.state_dict(), strict=True)
+            inputs = torch.randn(2, 24, 7)
+            torch.testing.assert_close(quantum(inputs), previous.eval()(inputs), rtol=0, atol=0)
 
     def test_joint_gradients_after_readout_update(self):
         inputs, targets = torch.randn(4, 24, 7), torch.randn(4, 3)
-        for name in ("proposed", "proposed_classical"):
-            model = get_model(name).train()
-            optimizer = main.Adam(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
-            self.assertEqual({id(p) for p in model.parameters()},
-                             {id(p) for group in optimizer.param_groups for p in group["params"]})
-            self.assertEqual(len(optimizer.param_groups), 1)
-            self.assertTrue(all(p.requires_grad for p in model.parameters()))
-            for step in range(2):
-                optimizer.zero_grad()
-                parts = model.forward_components(inputs)
-                torch.testing.assert_close(parts["final"], parts["base"] + parts["correction"], rtol=0, atol=0)
-                get_loss_function()(parts["final"], targets).backward()
-                for parameter in model.parameters():
-                    self.assertIsNotNone(parameter.grad)
-                    self.assertTrue(torch.isfinite(parameter.grad).all())
-                for module in (model.backbone.dcnn, model.backbone.feature_attention,
-                               model.backbone.residual_bilstm, model.backbone.temporal_attention,
-                               model.backbone.scalar_gated_fusion, model.backbone.mlp_head, model.readout):
-                    self.assertGreater(sum(p.grad.abs().sum().item() for p in module.parameters()), 0)
-                upstream = model.quantum_angles if name == "proposed" else model.transform.weight
-                if step == 0:
-                    self.assertEqual(upstream.grad.count_nonzero().item(), 0)
-                    self.assertEqual(model.projection.weight.grad.count_nonzero().item(), 0)
-                else:
-                    self.assertGreater(upstream.grad.abs().sum().item(), 0)
-                    self.assertGreater(model.projection.weight.grad.abs().sum().item(), 0)
-                optimizer.step()
+        model = get_model("proposed").train()
+        optimizer = main.Adam(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
+        self.assertEqual({id(p) for p in model.parameters()},
+                         {id(p) for group in optimizer.param_groups for p in group["params"]})
+        self.assertEqual(len(optimizer.param_groups), 1)
+        self.assertTrue(all(p.requires_grad for p in model.parameters()))
+        for step in range(2):
+            optimizer.zero_grad()
+            parts = model.forward_components(inputs)
+            torch.testing.assert_close(parts["final"], parts["base"] + parts["correction"], rtol=0, atol=0)
+            get_loss_function()(parts["final"], targets).backward()
+            for parameter in model.parameters():
+                self.assertIsNotNone(parameter.grad)
+                self.assertTrue(torch.isfinite(parameter.grad).all())
+            for module in (model.backbone.dcnn, model.backbone.feature_attention,
+                           model.backbone.residual_bilstm, model.backbone.temporal_attention,
+                           model.backbone.scalar_gated_fusion, model.backbone.mlp_head, model.readout):
+                self.assertGreater(sum(p.grad.abs().sum().item() for p in module.parameters()), 0)
+            upstream = model.quantum_angles
+            if step == 0:
+                self.assertEqual(upstream.grad.count_nonzero().item(), 0)
+                self.assertEqual(model.projection.weight.grad.count_nonzero().item(), 0)
+            else:
+                self.assertGreater(upstream.grad.abs().sum().item(), 0)
+                self.assertGreater(model.projection.weight.grad.abs().sum().item(), 0)
+            optimizer.step()
 
     def test_tcn_causality_and_receptive_field(self):
         model = get_model("tcn").eval()
@@ -188,7 +193,7 @@ class ModelTests(unittest.TestCase):
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable locally")
     def test_cuda_autograd(self):
         inputs = torch.randn(2, 24, 7, device="cuda")
-        for name in ("proposed", "proposed_classical", "tcn"):
+        for name in ("proposed", "tcn"):
             model = get_model(name).cuda()
             model(inputs).square().mean().backward()
             self.assertTrue(all(p.grad is not None and torch.isfinite(p.grad).all() for p in model.parameters()))
@@ -207,7 +212,7 @@ class ModelTests(unittest.TestCase):
             config.TEST_15_FILE, config.TARGET_SCALER_FILE = directory / "test_15.pt", scaler_path
             config.NUM_EPOCHS, config.BATCH_SIZE = 1, 4
             logger = logging.getLogger("model-tests")
-            for name in ("proposed", "proposed_classical", "tcn"):
+            for name in ("proposed", "tcn"):
                 argv = ["main.py", name, "--horizon", "15", "--run1"]
                 with patch.object(sys, "argv", argv), patch("main._select_device", return_value=torch.device("cpu")), \
                         patch("main.get_logger", return_value=logger), patch("main.run_baseline_analysis"), \
