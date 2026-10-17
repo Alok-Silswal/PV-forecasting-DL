@@ -47,16 +47,9 @@ class ProposedNoQuantum(nn.Module):
         bilstm_dropout_rate: float | None = None,
         mlp_hidden_dim: int | None = None,
         mlp_dropout_rate: float | None = None,
-        use_feature_attention: bool = True,
-        use_temporal_attention: bool = True,
-        use_scalar_gated_fusion: bool = True,
     ) -> None:
 
         super().__init__()
-
-        self.use_feature_attention = use_feature_attention
-        self.use_temporal_attention = use_temporal_attention
-        self.use_scalar_gated_fusion = use_scalar_gated_fusion
 
         # Any parameter left as None falls back to config.py, preserving
         # ProposedNoQuantum() as fully equivalent to prior behavior.
@@ -117,45 +110,9 @@ class ProposedNoQuantum(nn.Module):
         )
 
     def forward_features(self, x: Tensor) -> Tensor:
-
-        # ---------------- Spatial Branch ----------------
-
-        spatial_features = self.dcnn(x)
-
-        if self.use_feature_attention:
-            spatial_features = self.feature_attention(
-                spatial_features
-            )
-
-        # ---------------- Temporal Branch ----------------
-
-        temporal_features = self.residual_bilstm(x)
-
-        if self.use_temporal_attention:
-            temporal_features = self.temporal_attention(
-                temporal_features
-            )
-
-        # ---------------- Fusion ----------------
-
-        if self.use_scalar_gated_fusion:
-            fused_features = self.scalar_gated_fusion(
-                spatial_features,
-                temporal_features,
-            )
-        else:
-            # Reuses ScalarGatedFusion's own spatial_projection so the
-            # spatial branch is still mapped into temporal_dim
-            # (bilstm_hidden_size * 2) exactly as under gated fusion —
-            # only the learned gate is removed, replaced with a fixed
-            # 0.5 / 0.5 average.
-            projected_spatial = self.scalar_gated_fusion.spatial_projection(
-                spatial_features
-            )
-            fused_features = (
-                0.5 * projected_spatial + 0.5 * temporal_features
-            )
-
+        spatial_features = self.feature_attention(self.dcnn(x))
+        temporal_features = self.temporal_attention(self.residual_bilstm(x))
+        fused_features = self.scalar_gated_fusion(spatial_features, temporal_features)
         return fused_features.mean(dim=1)
 
     def forward(self, x: Tensor) -> Tensor:

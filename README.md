@@ -2,7 +2,7 @@
 
 - `proposed`: jointly trained original backbone/head plus a quantum residual.
 - `proposed_no_quantum`: the preserved original Proposed model; historical
-  results now live under this name. Its ablations keep their existing identities.
+  results now live under this name.
 - `tcn`: causal 32-channel residual blocks, dilations 1/2/4, receptive field 29.
 
 The quantum residual model uses pooled fusion [B,128], the existing 128-64-3 head,
@@ -13,6 +13,14 @@ The readout starts at zero; upstream correction gradients start at zero and beco
 active after readout updates. Everything is trained jointly with the existing
 comparison-model Adam policy, trainer, loss and run seeds. PennyLane is optional;
 the active simulator uses batched float32/complex64 PyTorch on CPU or CUDA.
+
+Quantum ablations use the same end-to-end residual model: `proposed_no_ta`
+bypasses temporal attention; `proposed_no_fa` bypasses feature attention;
+`proposed_no_fusion` uses `0.5 * spatial_projection(spatial) + 0.5 * temporal`.
+All retain the forecast head and full quantum correction. They initialize fresh
+with matching retained weights at each run seed. These are new experiments;
+component contributions remain untested until training. Use the same commands
+below with the corresponding model name.
 
 Use the existing preprocessing notebooks in order on Kaggle:
 `PV_Dataset_Analysis_AND_Preparation.ipynb`, then `Data_Preprocessing.ipynb`.
@@ -31,7 +39,6 @@ python main.py tcn --horizon 15 --run1
 python -m evaluation.evaluate --model tcn --horizon 15 --run 1
 ```
 
-Small synthetic checks: `python -B -m unittest discover -s tests -v`.
 The existing checkpoint/resume policy and output conventions are unchanged.
 Historical log contents and metric values are preserved. Matching tensor shapes
 do not prove identical historical dataset provenance.

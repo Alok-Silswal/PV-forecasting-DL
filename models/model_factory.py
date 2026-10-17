@@ -24,7 +24,6 @@ MODEL_NAMES = (
     "proposed", "proposed_no_quantum", "tcn",
     "cnn", "lstm", "cnn_lstm", "dcnn_rbilstm",
     "proposed_no_ta", "proposed_no_fa", "proposed_no_fusion",
-    "proposed_no_fa_no_ta_no_fusion",
 )
 
 def get_model(model_name: str, **kwargs) -> nn.Module:
@@ -56,28 +55,20 @@ def get_model(model_name: str, **kwargs) -> nn.Module:
     if model_name == "proposed":
         return ResidualForecast(**kwargs)
 
+    if model_name == "proposed_no_ta":
+        return ResidualForecast(use_temporal_attention=False, **kwargs)
+
+    if model_name == "proposed_no_fa":
+        return ResidualForecast(use_feature_attention=False, **kwargs)
+
+    if model_name == "proposed_no_fusion":
+        return ResidualForecast(use_scalar_gated_fusion=False, **kwargs)
+
     if model_name == "proposed_no_quantum":
         return ProposedNoQuantum(**kwargs)
 
     if model_name == "tcn":
         return TCN(**kwargs)
-
-    if model_name == "proposed_no_ta":
-        return ProposedNoQuantum(use_temporal_attention=False, **kwargs)
-
-    if model_name == "proposed_no_fa":
-        return ProposedNoQuantum(use_feature_attention=False, **kwargs)
-
-    if model_name == "proposed_no_fusion":
-        return ProposedNoQuantum(use_scalar_gated_fusion=False, **kwargs)
-
-    if model_name == "proposed_no_fa_no_ta_no_fusion":
-        return ProposedNoQuantum(
-            use_feature_attention=False,
-            use_temporal_attention=False,
-            use_scalar_gated_fusion=False,
-            **kwargs,
-        )
 
     if model_name == "cnn":
         return CNN(**kwargs)
