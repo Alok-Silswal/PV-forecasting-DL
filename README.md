@@ -22,6 +22,12 @@ with matching retained weights at each run seed. These are new experiments;
 component contributions remain untested until training. Use the same commands
 below with the corresponding model name.
 
+`proposed_no_dcnn` and `proposed_no_rbilstm` remove one encoder using a trainable
+per-timestep linear replacement: 7-to-64 and 7-to-128 at the default configured
+widths. Both retain feature/temporal attention, learned fusion, the forecast head
+and quantum correction. Replacement seeds use private offsets +20000/+30000;
+retained weights match the full model. Parameter counts differ between variants.
+
 Use the existing preprocessing notebooks in order on Kaggle:
 `PV_Dataset_Analysis_AND_Preparation.ipynb`, then `Data_Preprocessing.ipynb`.
 They retain the original preparation and train-only scaling method. The configured

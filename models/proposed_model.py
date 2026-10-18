@@ -10,8 +10,11 @@ from models.quantum_simulator import RVQCSimulator
 
 class ResidualForecast(nn.Module):
     def __init__(self, seed: int | None = None, *, use_temporal_attention: bool = True,
-                 use_feature_attention: bool = True, use_scalar_gated_fusion: bool = True) -> None:
+                 use_feature_attention: bool = True, use_scalar_gated_fusion: bool = True,
+                 use_dcnn: bool = True, use_rbilstm: bool = True) -> None:
         super().__init__()
+        if not use_dcnn and not use_rbilstm:
+            raise ValueError("Only one encoder may be removed.")
         if (config.NUM_FEATURES, config.LOOKBACK, config.BILSTM_HIDDEN_SIZE,
                 config.MLP_HIDDEN_DIM, config.ACTIVE_HORIZON) != (7, 24, 64, 64, "15"):
             raise ValueError("Residual forecasters require [B,24,7], width 128, head 64 and horizon 15.")
@@ -36,7 +39,15 @@ class ResidualForecast(nn.Module):
         self.quantum_angles = nn.Parameter(
             torch.empty(2, 6, 2).uniform_(-0.1, 0.1, generator=generator))
         self.simulator = RVQCSimulator()
-        # Bypass after construction so retained components keep the same initialization.
+        # Replace after construction so retained components keep the same initialization.
+        if not use_dcnn or not use_rbilstm:
+            with torch.random.fork_rng(devices=[]):
+                if not use_dcnn:
+                    torch.random.default_generator.manual_seed(seed + 20000)
+                    self.backbone.dcnn = nn.Linear(config.NUM_FEATURES, config.DCNN_FILTERS)
+                else:
+                    torch.random.default_generator.manual_seed(seed + 30000)
+                    self.backbone.residual_bilstm = nn.Linear(config.NUM_FEATURES, 2 * config.BILSTM_HIDDEN_SIZE)
         if not use_temporal_attention:
             self.backbone.temporal_attention = nn.Identity()
         if not use_feature_attention:
