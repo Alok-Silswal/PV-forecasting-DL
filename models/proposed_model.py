@@ -1,4 +1,4 @@
-"""Jointly trained quantum residual forecaster."""
+"""End-to-end hybrid model: forecast-head output + quantum residual."""
 
 import math
 import torch
@@ -17,7 +17,7 @@ class ResidualForecast(nn.Module):
             raise ValueError("Only one encoder may be removed.")
         if (config.NUM_FEATURES, config.LOOKBACK, config.BILSTM_HIDDEN_SIZE,
                 config.MLP_HIDDEN_DIM, config.ACTIVE_HORIZON) != (7, 24, 64, 64, "15"):
-            raise ValueError("Residual forecasters require [B,24,7], width 128, head 64 and horizon 15.")
+            raise ValueError("Hybrid forecasters require [B,24,7], width 128, head 64 and horizon 15.")
         seed = config.RANDOM_SEED + config.RUN_NUMBER - 1 if seed is None else seed
         self.architecture_id = "residual_quantum_v1"
         self.kind = "quantum"
@@ -65,13 +65,14 @@ class ResidualForecast(nn.Module):
             temporal = self.backbone.temporal_attention(self.backbone.residual_bilstm(inputs))
             pooled = (0.5 * self.backbone.scalar_gated_fusion.spatial_projection(spatial)
                       + 0.5 * temporal).mean(dim=1)
-        base = self.backbone.mlp_head(pooled)
+        forecast = self.backbone.mlp_head(pooled)
         with torch.autocast(device_type=inputs.device.type, enabled=False):
             theta = math.pi * torch.tanh(self.projection(pooled.float()))
             features = self.simulator(theta, self.quantum_angles)
-            correction = self.readout(features)
-        return {"pooled": pooled, "base": base, "correction": correction,
-                "final": base + correction}
+            quantum_residual = self.readout(features)
+        # Legacy keys preserve the forward_components API.
+        return {"pooled": pooled, "base": forecast, "correction": quantum_residual,
+                "final": forecast + quantum_residual}
 
     def forward(self, inputs: Tensor) -> Tensor:
         return self.forward_components(inputs)["final"]
