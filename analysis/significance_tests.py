@@ -8,7 +8,7 @@ REFERENCE = "proposed"
 COMPARATORS = (
     "cnn", "lstm", "cnn_lstm", "tcn", "dcnn_rbilstm",
     "proposed_no_quantum", "proposed_no_ta", "proposed_no_fa",
-    "proposed_no_fusion", "proposed_no_dcnn", "proposed_no_rbilstm",
+    "proposed_no_dcnn", "proposed_no_rbilstm",
 )
 MODELS = (REFERENCE, *COMPARATORS)
 RUNS = (1, 2, 3, 4, 5)
@@ -27,22 +27,24 @@ METHOD_NOTES = (
     "Pairing is inferred and conditional on matching runs 1-5 being valid paired "
     "training replicates on the same evaluation data. Neither historical seed "
     "identity nor dataset identity is verified by directory names/current config.",
-    "The 60 metric JSONs and training logs contain no explicit seeds or dataset "
+    "The 55 metric JSONs and training logs contain no explicit seeds or dataset "
     "fingerprints. Logs span July/October and include legacy model paths "
-    "(notably dcnn_rbilstm run 1 and proposed_no_quantum). README documents the "
-    "historical proposed rename; legacy paths still leave provenance ambiguous.",
+    "(notably dcnn_rbilstm run 1 and proposed_no_quantum). Legacy paths leave "
+    "historical provenance ambiguous.",
     "Inspected records do not explicitly identify conflicting paired seeds or "
     "datasets. Similar target ranges inferred from RMSE/nRMSE are compatible "
     "with a common target scale, but do not establish dataset/input identity. "
     "If pairing is contradicted, the paired tests must not be interpreted/run.",
     "RMSE only: exhaustive two-sided Wilcoxon sign permutations, average ranks "
     "for tied absolute differences, zero differences omitted (wilcox). All-zero "
-    "differences give W=0, p=1. Holm covers all 11 declared comparisons; "
+    "differences give W=0, p=1. Holm covers all 10 declared comparisons; "
     "alpha=0.05. Exactness assumes independent, sign-exchangeable paired "
     "differences under the null (the signed-rank symmetry assumption).",
     "Differences = comparator - proposed in run order 1-5; positive favors "
     "proposed. W/L/T counts proposed wins/losses/ties. MAE is descriptive only. "
     "Means/sample SDs use run-level JSONs, never saved averages.",
+    "The comparison family was reduced after results had been inspected; "
+    "it was not prospectively selected.",
 )
 
 

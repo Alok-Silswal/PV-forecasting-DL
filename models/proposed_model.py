@@ -10,7 +10,7 @@ from models.quantum_simulator import RVQCSimulator
 
 class ResidualForecast(nn.Module):
     def __init__(self, seed: int | None = None, *, use_temporal_attention: bool = True,
-                 use_feature_attention: bool = True, use_scalar_gated_fusion: bool = True,
+                 use_feature_attention: bool = True,
                  use_dcnn: bool = True, use_rbilstm: bool = True) -> None:
         super().__init__()
         if not use_dcnn and not use_rbilstm:
@@ -21,7 +21,6 @@ class ResidualForecast(nn.Module):
         seed = config.RANDOM_SEED + config.RUN_NUMBER - 1 if seed is None else seed
         self.architecture_id = "residual_quantum_v1"
         self.kind = "quantum"
-        self.use_scalar_gated_fusion = use_scalar_gated_fusion
         # Preserve initialization order and the caller's RNG state.
         with torch.random.fork_rng(devices=[]):
             torch.random.default_generator.manual_seed(seed)
@@ -52,19 +51,11 @@ class ResidualForecast(nn.Module):
             self.backbone.temporal_attention = nn.Identity()
         if not use_feature_attention:
             self.backbone.feature_attention = nn.Identity()
-        if not use_scalar_gated_fusion:
-            self.backbone.scalar_gated_fusion.gate_generator = nn.Identity()
 
     def forward_components(self, inputs: Tensor) -> dict[str, Tensor]:
         if inputs.ndim != 3 or inputs.shape[1:] != (24, 7):
             raise ValueError("Expected input [B,24,7].")
-        if self.use_scalar_gated_fusion:
-            pooled = self.backbone.forward_features(inputs)
-        else:
-            spatial = self.backbone.feature_attention(self.backbone.dcnn(inputs))
-            temporal = self.backbone.temporal_attention(self.backbone.residual_bilstm(inputs))
-            pooled = (0.5 * self.backbone.scalar_gated_fusion.spatial_projection(spatial)
-                      + 0.5 * temporal).mean(dim=1)
+        pooled = self.backbone.forward_features(inputs)
         forecast = self.backbone.mlp_head(pooled)
         with torch.autocast(device_type=inputs.device.type, enabled=False):
             theta = math.pi * torch.tanh(self.projection(pooled.float()))
